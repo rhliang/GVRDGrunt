@@ -289,14 +289,14 @@ class VerificationCog():
 
         await welcome_channel.send(guild_info["welcome_message"].format(new_member.mention))
 
-    async def verify_helper(self, ctx, member: discord.Member, in_game_name, team: discord.Role, roles_to_apply):
+    async def verify_helper(self, ctx, member: discord.Member, in_game_name, team, roles_to_apply):
         """
         Helper function that performs the work of both verify and nickverify.
 
         :param ctx: context that includes the message
         :param member: a Discord member
         :param in_game_name: the IGN for the user (may be None, in which case don't set it)
-        :param team: the Discord role representing their team
+        :param team: one of "instinct|mystic|valor|i|m|v|blue|yellow|red|b|y|r", case-insensitive
         :param roles_to_apply: a list representing roles that should be applied
         :return:
         """
@@ -318,36 +318,50 @@ class VerificationCog():
                 return
 
             # Having reached here, we know this member is in the Welcome role.
-            role_converter = discord.ext.commands.RoleConverter()
-            team_role = await role_converter.convert(ctx, str(team))
-            if team_role not in (guild_info["instinct_role"], guild_info["mystic_role"], guild_info["valor_role"]):
-                raise discord.ext.commands.BadArgument(
-                    "Team must be one of {} | {} | {}".format(
-                        guild_info["instinct_role"],
-                        guild_info["mystic_role"],
-                        guild_info["valor_role"]
-                    )
+            instinct_strings = ["instinct", "i", "yellow", "y"]
+            mystic_strings = ["mystic", "m", "blue", "b"]
+            valor_strings = ["valor", "v", "red", "r"]
+            team_role = None
+            team = team.lower()
+            if team in instinct_strings:
+                team_role = guild_info["instinct_role"]
+            elif team in mystic_strings:
+                team_role = guild_info["mystic_role"]
+            elif team in valor_strings:
+                team_role = guild_info["valor_role"]
+            else:
+                "Team must be one of the following (case-insensitive): {}".format(
+                    "|".join(instinct_strings + mystic_strings + valor_strings)
                 )
-            roles_to_add = [await role_converter.convert(ctx, str(team))]
 
             # If any roles are specified in roles_to_apply, apply those; otherwise,
             # apply the standard battery of roles.
             if len(roles_to_apply) == 0:
-                roles_to_add.extend(guild_info["standard_roles"])
+                roles_to_add = guild_info["standard_roles"]
             else:
-                roles_to_add.extend([await role_converter.convert(ctx, str(role)) for role in roles_to_apply])
+                role_converter = discord.ext.commands.RoleConverter()
+                roles_to_add = [await role_converter.convert(ctx, str(role)) for role in roles_to_apply]
 
             if in_game_name is not None:
                 await member.edit(
-                    roles=roles_to_add,
+                    roles=[team_role] + roles_to_add,
                     nick=in_game_name,
                     reason="Verified by {} using {}".format(message.author.mention, self.bot.user.name)
                 )
             else:
                 await member.edit(
-                    roles=roles_to_add,
+                    roles=[team_role] + roles_to_add,
                     reason="Verified by {} using {}".format(message.author.mention, self.bot.user.name)
                 )
+
+            await message.channel.send(
+                "{} Member {} has been verified with team {} and roles {}.".format(
+                    message.author.mention,
+                    member,
+                    team_role,
+                    "|".join(roles_to_add)
+                )
+            )
 
         await self.send_welcome_message(ctx, member)
 
