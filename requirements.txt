@@ -1,0 +1,1 @@
+-e git+https://github.com/Rapptz/discord.py.git@9b4a2dc7cb073ab76a3f62cfb0176f4f8b99bc94#egg=discord.py
