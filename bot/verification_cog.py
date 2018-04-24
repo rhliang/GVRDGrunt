@@ -273,6 +273,8 @@ class VerificationCog():
             Welcome channel: {}
             Roles given on a standard verification:
             {}
+            Roles that must be given during verification:
+            {}
             Welcome message:
             ----
             {}
@@ -280,11 +282,14 @@ class VerificationCog():
             """
         )
 
-        standard_role_str = "(none)"
-        if len(guild_info["standard_roles"]) > 0:
-            standard_role_str = " - {}".format(guild_info["standard_roles"][0])
-            for standard_role in guild_info["standard_roles"][1:]:
-                standard_role_str += "\n - {}".format(standard_role)
+        role_list_strings = {}
+        for role_type in ("standard", "mandatory"):
+            role_list_strings[role_type] = "(none)"
+            curr_type_roles = guild_info["{}_roles".format(role_type)]
+            if len(curr_type_roles) > 0:
+                role_list_strings[role_type] = " - {}".format(curr_type_roles[0])
+                for curr_type_role in curr_type_roles[1:]:
+                    role_list_strings[role_type] += "\n - {}".format(curr_type_role)
 
         welcome_message_str = guild_info["welcome_message"] if guild_info["welcome_message"] is not None else "(none)"
 
@@ -296,7 +301,8 @@ class VerificationCog():
                 guild_info["mystic_role"],
                 guild_info["valor_role"],
                 guild_info["welcome_channel"],
-                standard_role_str,
+                role_list_strings["standard"],
+                role_list_strings["mandatory"],
                 welcome_message_str
             )
         )
