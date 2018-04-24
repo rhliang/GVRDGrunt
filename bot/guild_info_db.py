@@ -11,6 +11,37 @@ class GuildInfoDB(object):
         self.path_to_db = path_to_db
         self.conn = sqlite3.connect(self.path_to_db)  # database can be initialized with db_initialization.sql
 
+    def get_guild_screenshot_raw_info(self, guild):
+        """
+        Return some raw guild information required for handling screenshots.
+
+        Because we don't have a context object, we can't convert channel IDs to channels
+        or role IDs to roles.
+        :param guild:
+        :return:
+        """
+        with self.conn:
+            guild_info_cursor = self.conn.execute(
+                """
+                select screenshot_channel, help_channel, denied_message, welcome_role
+                from guild_info 
+                where guild_id = ?;
+                """,
+                (guild.id,)
+            )
+            guild_info_tuple = guild_info_cursor.fetchone()
+
+        if guild_info_tuple is None:
+            return None
+
+        return {
+            "screenshot_channel_id": guild_info_tuple[0],
+            "help_channel_id": guild_info_tuple[1],
+            "denied_message": guild_info_tuple[2],
+            "welcome_role_id": guild_info_tuple[3]
+        }
+
+
     async def get_guild(self, ctx):
         """
         Return the dictionary of information corresponding to the specified guild.
@@ -21,7 +52,8 @@ class GuildInfoDB(object):
         with self.conn:
             guild_info_cursor = self.conn.execute(
                 """
-                select log_channel, welcome_role, instinct_role, mystic_role, 
+                select log_channel, screenshot_channel, help_channel, denied_message,
+                welcome_role, instinct_role, mystic_role, 
                 valor_role, welcome_message, welcome_channel 
                 from guild_info 
                 where guild_id = ?;
@@ -54,26 +86,36 @@ class GuildInfoDB(object):
 
         channel_converter = TextChannelConverter()
         log_channel = None
+        screenshot_channel = None
+        help_channel = None
+        denied_message = guild_info_tuple[3]
         welcome_role = None
         instinct_role = None
         mystic_role = None
         valor_role = None
-        welcome_message = guild_info_tuple[5]
+        welcome_message = guild_info_tuple[8]
         welcome_channel = None
         if guild_info_tuple[0] is not None:
             log_channel = await channel_converter.convert(ctx, str(guild_info_tuple[0]))
         if guild_info_tuple[1] is not None:
-            welcome_role = await role_converter.convert(ctx, str(guild_info_tuple[1]))
+            screenshot_channel = await channel_converter.convert(ctx, str(guild_info_tuple[1]))
         if guild_info_tuple[2] is not None:
-            instinct_role = await role_converter.convert(ctx, str(guild_info_tuple[2]))
-        if guild_info_tuple[3] is not None:
-            mystic_role = await role_converter.convert(ctx, str(guild_info_tuple[3]))
+            help_channel = await channel_converter.convert(ctx, str(guild_info_tuple[2]))
         if guild_info_tuple[4] is not None:
-            valor_role = await role_converter.convert(ctx, str(guild_info_tuple[4]))
+            welcome_role = await role_converter.convert(ctx, str(guild_info_tuple[4]))
+        if guild_info_tuple[5] is not None:
+            instinct_role = await role_converter.convert(ctx, str(guild_info_tuple[5]))
         if guild_info_tuple[6] is not None:
-            welcome_channel = await channel_converter.convert(ctx, str(guild_info_tuple[6]))
+            mystic_role = await role_converter.convert(ctx, str(guild_info_tuple[6]))
+        if guild_info_tuple[7] is not None:
+            valor_role = await role_converter.convert(ctx, str(guild_info_tuple[7]))
+        if guild_info_tuple[9] is not None:
+            welcome_channel = await channel_converter.convert(ctx, str(guild_info_tuple[9]))
         return {
             "log_channel": log_channel,
+            "screenshot_channel": screenshot_channel,
+            "help_channel": help_channel,
+            "denied_message": denied_message,
             "welcome_role": welcome_role,
             "instinct_role": instinct_role,
             "mystic_role": mystic_role,
@@ -99,23 +141,46 @@ class GuildInfoDB(object):
                 (ctx.guild.id,)
             )
 
-    def set_log_channel(self, ctx, log_channel: discord.TextChannel):
+    def set_channel(self, ctx, channel: discord.TextChannel, type):
         """
         Set the log channel for the guild that ctx comes from.
 
         :param ctx:
         :param channel:
+        :param type: one of "log", "screenshot", or "help"
+        :return:
+        """
+        assert type in ("log", "screenshot", "help")
+        with self.conn:
+            self.conn.execute(
+                """
+                update guild_info
+                set {}_channel = ?
+                where guild_id = ?;
+                """.format(type),
+                (
+                    channel.id,
+                    ctx.guild.id
+                )
+            )
+
+    def set_denied_message(self, ctx, denied_message):
+        """
+        Set the message sent when requesting a new screenshot.
+
+        :param ctx:
+        :param denied_message:
         :return:
         """
         with self.conn:
             self.conn.execute(
                 """
                 update guild_info
-                set log_channel = ?
+                set denied_message = ?
                 where guild_id = ?;
-                """,
+                """.format(type),
                 (
-                    log_channel.id,
+                    denied_message,
                     ctx.guild.id
                 )
             )

@@ -3,6 +3,8 @@
 create table guild_info(
     guild_id primary key,
     log_channel,
+    screenshot_channel,
+    help_channel,
     welcome_role,
     instinct_role,
     mystic_role,

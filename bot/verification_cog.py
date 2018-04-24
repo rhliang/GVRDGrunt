@@ -13,6 +13,8 @@ class VerificationCog():
     def __init__(self, bot, db):
         self.bot = bot
         self.db = db  # a GuildInfoDB object or workalike
+        self.member_to_screenshot = {}  # maps member -|-> the member's most recent unverified screenshot
+        self.screenshot_to_member = {}  # the converse mapping
 
     @discord.ext.commands.command()
     @discord.ext.commands.has_permissions(administrator=True)
@@ -45,11 +47,11 @@ class VerificationCog():
 
     @discord.ext.commands.command()
     @discord.ext.commands.has_permissions(administrator=True)
-    async def configure_log_channel(self, ctx, channel: discord.TextChannel):
+    async def configure_channel(self, ctx, channel_type, channel: discord.TextChannel):
         """
-        Set the channel that we log to for the guild that this command was run in.
-
+        Helper that performs guild channel configuration for the screenshot, help, and log channels.
         :param ctx:
+        :param channel_type:
         :param channel:
         :return:
         """
@@ -59,6 +61,9 @@ class VerificationCog():
             )
             return
 
+        if channel_type not in ("screenshot", "help", "log"):
+            raise discord.ext.commands.BadArgument("Channel type must be one of screenshot, help, or log.")
+
         # First, check that the client can write to this channel.
         channel_perms = channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
         if not channel_perms.send_messages:
@@ -67,10 +72,9 @@ class VerificationCog():
             )
             return
 
-        self.db.set_log_channel(ctx, channel)
-
+        self.db.set_channel(ctx, channel, channel_type)
         await ctx.message.channel.send(
-            '{} {} will log to channel {}.'.format(ctx.author.mention, self.bot.user.name, channel)
+            '{} {} channel set to {}.'.format(ctx.author.mention, channel_type, channel)
         )
 
     @discord.ext.commands.command()
@@ -183,7 +187,10 @@ class VerificationCog():
 
         guild_info = await self.db.get_guild(ctx)
         assert guild_info is not None, "Guild information has been corrupted in the database"
-        if (guild_info["welcome_role"] is None or
+        if (guild_info["log_channel"] is None or
+                guild_info["screenshot_channel"] is None or
+                guild_info["help_channel"] is None or
+                guild_info["welcome_role"] is None or
                 guild_info["instinct_role"] is None or
                 guild_info["mystic_role"] is None or
                 guild_info["valor_role"] is None or
@@ -268,6 +275,8 @@ class VerificationCog():
         summary_str_template = textwrap.dedent(
             """\
             Log channel: {}
+            Screenshot channel: {}
+            Help channel: {}
             Welcome role: {}
             Team roles: {} | {} | {}
             Welcome channel: {}
@@ -276,6 +285,10 @@ class VerificationCog():
             Roles that must be given during verification:
             {}
             Welcome message:
+            ----
+            {}
+            ----
+            Message sent when requesting a new screenshot:
             ----
             {}
             ----
@@ -291,11 +304,14 @@ class VerificationCog():
                 for curr_type_role in curr_type_roles[1:]:
                     role_list_strings[role_type] += "\n - {}".format(curr_type_role)
 
-        welcome_message_str = guild_info["welcome_message"] if guild_info["welcome_message"] is not None else "(none)"
+        welcome_message = guild_info["welcome_message"] if guild_info["welcome_message"] is not None else "(none)"
+        denied_message = guild_info["denied_message"] if guild_info["denied_message"] is not None else "(none)"
 
         await ctx.message.channel.send(
             summary_str_template.format(
                 guild_info["log_channel"],
+                guild_info["screenshot_channel"],
+                guild_info["help_channel"],
                 guild_info["welcome_role"],
                 guild_info["instinct_role"],
                 guild_info["mystic_role"],
@@ -303,7 +319,8 @@ class VerificationCog():
                 guild_info["welcome_channel"],
                 role_list_strings["standard"],
                 role_list_strings["mandatory"],
-                welcome_message_str
+                welcome_message,
+                denied_message
             )
         )
 
@@ -319,7 +336,6 @@ class VerificationCog():
         assert guild_info is not None, "Guild information has been corrupted in the database"
         channel_converter = discord.ext.commands.TextChannelConverter()
         welcome_channel = await channel_converter.convert(ctx, str(guild_info["welcome_channel"]))
-
         await welcome_channel.send(guild_info["welcome_message"].format(new_member.mention))
 
     async def verify_helper(self, ctx, member: discord.Member, in_game_name, team, roles_to_apply):
@@ -389,6 +405,7 @@ class VerificationCog():
                     reason="Verified by {} using {}".format(message.author.mention, self.bot.user.name)
                 )
 
+            self.member_approved(member)
             await message.channel.send(
                 "{} Member {} has been verified with team {} and roles {}.".format(
                     message.author.mention,
@@ -505,3 +522,120 @@ class VerificationCog():
                 nick=None,
                 reason="Reset by {} using {}".format(ctx.message.author.mention, self.bot.user.name)
             )
+
+    def is_welcome_member_screenshot(self, message):
+        """
+        True if this is a screenshot in the appropriate channel from a Welcome member, False otherwise.
+
+        :param message:
+        :return:
+        """
+        guild_screenshot_raw_info = self.db.get_guild_screenshot_raw_info(message.guild)
+        if message.channel.id != guild_screenshot_raw_info["screenshot_channel_id"]:
+            return False
+        if guild_screenshot_raw_info["welcome_role_id"] not in [x.id for x in message.author.roles]:
+            return False
+        if len(message.attachments) == 0:
+            return False
+        return True
+
+    async def welcome_member_screenshot_received(self, screenshot_message):
+        """
+        On receipt of a Welcome member's screenshot, track this message and its reactions.
+
+        If this member has no previous messages being tracked, start tracking their messages.
+        If there is a previous message, forget the old one and start tracking this one.
+        Add a :white_check_mark: reaction and an :x: reaction.
+
+        :return:
+        """
+        # Having reached here, we know that this message is in the appropriate channel,
+        # sent by someone with the Welcome role, and contains an attachment (presumably a screenshot).
+        await screenshot_message.clear_reactions()
+        screenshot_message.add_reaction("white_check_mark")
+        screenshot_message.add_reaction("x")
+
+        original_screenshot = self.member_to_screenshot.get(screenshot_message.author, None)
+        if original_screenshot is not None:
+            original_screenshot.clear_reactions()
+            del self.screenshot_to_member[original_screenshot]
+
+        self.member_to_screenshot[screenshot_message.author] = screenshot_message
+        self.screenshot_to_member[screenshot_message] = screenshot_message.author
+
+    async def on_message(self, message):
+        """
+        If this is a Welcome member's screenshot in the right channel, add reactions and start tracking it.
+
+        :param message:
+        :return:
+        """
+        if self.is_welcome_member_screenshot(message):
+            await self.welcome_member_screenshot_received(message)
+
+    def member_approved(self, member):
+        """
+        This member has been approved, so remove them and their screenshot from tracking.
+
+        Call this when the member is either manually or automatedly verified.
+
+        :param member:
+        :return:
+        """
+        screenshot_message = self.member_to_screenshot.get(member, None)
+        if screenshot_message is None:
+            return
+        if screenshot_message in self.screenshot_to_member:
+            del self.screenshot_to_member[screenshot_message]
+
+        screenshot_message.clear_reactions()
+        screenshot_message.add_reaction("thumbsup")
+        del self.member_to_screenshot[member]
+
+    async def on_reaction_add(self, reaction, user):
+        """
+        Mark as verified or denied when a moderator adds a reaction to a screenshot message.
+
+        :param reaction:
+        :param user:
+        :return:
+        """
+        guild_screenshot_raw_info = self.db.get_guild_screenshot_raw_info(reaction.message.guild)
+        if reaction.message.channel.id != guild_screenshot_raw_info["screenshot_channel_id"]:
+            return
+        reacting_member = reaction.message.guild.get_member(user.id)
+        if not reacting_member.manage_roles or not reacting_member.manage_nicknames:
+            return
+
+        if reaction.message not in self.screenshot_to_member:
+            return
+
+        if str(reaction) not in ("white_check_mark", "x"):
+            return
+
+        # Having reached this point, we know that this reaction was added to a Welcome screenshot
+        # by a moderator.
+        member_to_verify = self.screenshot_to_member[reaction.message]
+        if str(reaction) == "white_check_mark":
+            self.member_approved(member_to_verify)
+        else:
+            self.mark_screenshot_denied(member_to_verify)
+
+    async def deny_member(self, member):
+        """
+        Mark this member as having been denied entry and ping them with a message in the help channel.
+
+        :param member:
+        :return:
+        """
+        screenshot_message = self.member_to_screenshot.get(member, None)
+        if screenshot_message is not None:
+            screenshot_message.clear_reactions()
+            screenshot_message.add_reaction("thumbsdown")
+            del self.member_to_screenshot[member]
+            del self.screenshot_to_member[screenshot_message]
+
+        guild_screenshot_raw_info = self.db.get_guild_screenshot_raw_info(member.guild)
+        help_channel = member.guild.get_channel(guild_screenshot_raw_info["help_channel_id"])
+
+        await help_channel.send(guild_screenshot_raw_info["denied_message"].format(member.mention))
