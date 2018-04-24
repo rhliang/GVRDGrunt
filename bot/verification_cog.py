@@ -1,6 +1,7 @@
 # coding=utf-8
 import textwrap
 import discord
+from bot import settings
 
 __author__ = 'Richard Liang'
 
@@ -468,3 +469,33 @@ class VerificationCog():
         await ctx.message.channel.send(
             access_granted_message_template.format(ctx.author.mention, role_str)
         )
+
+    @discord.ext.commands.command(
+        help="Reset the specified member.",
+        enabled=not settings.production  # only available when testing
+    )
+    @discord.ext.commands.has_permissions(manage_roles=True)
+    @discord.ext.commands.has_permissions(manage_nicknames=True)
+    async def reset(self, ctx, member: discord.Member):
+        """
+        Reset the member for testing.
+
+        This will strip the member of all roles and their nickname, and adding them to the Welcome role.
+
+        :param ctx: context that includes the message
+        :param member: a Discord member
+        :return:
+        """
+        if not await self.guild_fully_configured(ctx):
+            await ctx.message.channel.send(
+                '{} This guild is not fully set up yet.'.format(ctx.author.mention)
+            )
+            return
+
+        async with ctx.message.channel.typing():
+            guild_info = await self.db.get_guild(ctx)
+            await member.edit(
+                roles=[guild_info["welcome_role"]],
+                nick=None,
+                reason="Reset by {} using {}".format(ctx.message.author.mention, self.bot.user.name)
+            )
