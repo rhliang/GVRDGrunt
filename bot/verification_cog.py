@@ -193,6 +193,32 @@ class VerificationCog():
 
     @discord.ext.commands.command()
     @discord.ext.commands.has_permissions(administrator=True)
+    async def add_mandatory_role(self, ctx, role: discord.Role):
+        """
+        Add a role to the list of roles that *must* be given to a user on verification.
+
+        :param ctx:
+        :param role:
+        :return:
+        """
+        if not await self.guild_fully_configured(ctx):
+            await ctx.message.channel.send(
+                '{} Basic guild configuration must be finished before adding mandatory roles.'.format(
+                    ctx.author.mention
+                )
+            )
+            return
+
+        self.db.add_standard_role(ctx, role, mandatory=True)
+        await ctx.message.channel.send(
+            "{} Role {} has been added to this guild's mandatory roles".format(
+                ctx.author.mention,
+                role
+            )
+        )
+
+    @discord.ext.commands.command()
+    @discord.ext.commands.has_permissions(administrator=True)
     async def add_standard_role(self, ctx, role: discord.Role):
         """
         Add a role to the list of roles given to a user on a standard verification.
@@ -209,7 +235,7 @@ class VerificationCog():
             )
             return
 
-        self.db.add_standard_role(ctx, role)
+        self.db.add_standard_role(ctx, role, mandatory=False)
         await ctx.message.channel.send(
             "{} Role {} has been added to this guild's standard roles".format(
                 ctx.author.mention,
@@ -342,15 +368,17 @@ class VerificationCog():
                 role_converter = discord.ext.commands.RoleConverter()
                 roles_to_add = [await role_converter.convert(ctx, str(role)) for role in roles_to_apply]
 
+            final_roles_to_add = list(set([team_role] + guild_info["mandatory_roles"] + roles_to_add))
+
             if in_game_name is not None:
                 await member.edit(
-                    roles=[team_role] + roles_to_add,
+                    roles=final_roles_to_add,
                     nick=in_game_name,
                     reason="Verified by {} using {}".format(message.author.mention, self.bot.user.name)
                 )
             else:
                 await member.edit(
-                    roles=[team_role] + roles_to_add,
+                    roles=final_roles_to_add,
                     reason="Verified by {} using {}".format(message.author.mention, self.bot.user.name)
                 )
 
@@ -359,7 +387,7 @@ class VerificationCog():
                     message.author.mention,
                     member,
                     team_role,
-                    "|".join(roles_to_add)
+                    "|".join(list(set(roles_to_add + guild_info["mandatory_roles"])))
                 )
             )
 

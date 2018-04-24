@@ -9,37 +9,7 @@ class GuildInfoDB(object):
     """
     def __init__(self, path_to_db):
         self.path_to_db = path_to_db
-        self.conn = sqlite3.connect(self.path_to_db)
-
-    def initialize(self):
-        """
-        Creates the guild info table and the guild region roles table.
-        :return:
-        """
-        with self.conn:
-            self.conn.execute(
-                """
-                create table guild_info(
-                    guild_id primary key,
-                    log_channel,
-                    welcome_role,
-                    instinct_role,
-                    mystic_role,
-                    valor_role,
-                    welcome_message,
-                    welcome_channel
-                );
-                """
-            )
-
-            self.conn.execute(
-                """
-                create table guild_standard_roles(
-                    role_id primary key,
-                    guild_id
-                );
-                """
-            )
+        self.conn = sqlite3.connect(self.path_to_db)  # database can be initialized with db_initialization.sql
 
     async def get_guild(self, ctx):
         """
@@ -64,16 +34,23 @@ class GuildInfoDB(object):
             return None
 
         role_converter = RoleConverter()
+        standard_roles = []
+        mandatory_roles = []
         with self.conn:
             guild_roles_cursor = self.conn.execute(
                 """
-                select role_id
+                select role_id, mandatory
                 from guild_standard_roles
                 where guild_id = ?;
                 """,
                 (ctx.guild.id,)
             )
-            guild_roles = [await role_converter.convert(ctx, str(row[0])) for row in guild_roles_cursor]
+            for role_id, mandatory in guild_roles_cursor:
+                role = await role_converter.convert(ctx, str(role_id))
+                if mandatory:
+                    mandatory_roles.append(role)
+                else:
+                    standard_roles.append(role)
 
         channel_converter = TextChannelConverter()
         log_channel = None
@@ -103,7 +80,8 @@ class GuildInfoDB(object):
             "valor_role": valor_role,
             "welcome_message": welcome_message,
             "welcome_channel": welcome_channel,
-            "standard_roles": guild_roles
+            "standard_roles": standard_roles,
+            "mandatory_roles": mandatory_roles
         }
 
     def register_guild(self, ctx):
@@ -210,21 +188,23 @@ class GuildInfoDB(object):
                 )
             )
 
-    def add_standard_role(self, ctx, role: discord.Role):
+    def add_standard_role(self, ctx, role: discord.Role, mandatory: bool):
         """
         Add a guild role to the list of standard roles given to a user on verification.
 
         :param ctx:
         :param role:
+        :param mandatory:
         :return:
         """
         with self.conn:
             self.conn.execute(
                 """
-                insert into guild_standard_roles (guild_id, role_id) values(?, ?);
+                insert into guild_standard_roles (guild_id, role_id, mandatory) values(?, ?, ?);
                 """,
                 (
                     ctx.guild.id,
-                    role.id
+                    role.id,
+                    mandatory
                 )
             )
