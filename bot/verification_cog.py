@@ -1,5 +1,7 @@
 import textwrap
 import discord
+from discord.ext.commands import command, has_permissions, BadArgument, RoleConverter
+
 from bot import settings
 
 __author__ = 'Richard Liang'
@@ -15,8 +17,8 @@ class VerificationCog():
         self.member_to_screenshot = {}  # maps member -|-> the member's most recent unverified screenshot
         self.screenshot_to_member = {}  # the converse mapping
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def register_guild(self, ctx):
         """
         Register this guild with the bot.
@@ -42,8 +44,8 @@ class VerificationCog():
         guild_info = await self.db.get_guild(ctx)
         return guild_info is not None
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def configure_channel(self, ctx, channel_type, channel: discord.TextChannel):
         """
         Helper that performs guild channel configuration for the screenshot, help, and log channels.
@@ -57,7 +59,7 @@ class VerificationCog():
             return
 
         if channel_type not in ("screenshot", "help", "log"):
-            raise discord.ext.commands.BadArgument("Channel type must be one of screenshot, help, or log.")
+            raise BadArgument("Channel type must be one of screenshot, help, or log.")
 
         # First, check that the client can write to this channel.
         channel_perms = channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
@@ -72,8 +74,8 @@ class VerificationCog():
             f'{ctx.author.mention} {channel_type} channel set to {channel}.'
         )
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def configure_welcome_role(self, ctx, role: discord.Role):
         """
         Set this guild's welcome role.
@@ -94,8 +96,8 @@ class VerificationCog():
             f"{ctx.author.mention} This guild's welcome role has been set to: {role.id}"
         )
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def configure_guild_team(self, ctx, team, role: discord.Role):
         """
         Update the guild information in the database with the given team's snowflake.
@@ -116,8 +118,8 @@ class VerificationCog():
             f'{ctx.author.mention} Guild information has been updated: {team.lower()} role is {role.id}.'
         )
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def configure_guild_welcome(self, ctx, welcome_channel: discord.TextChannel, welcome_message):
         """
         Configure how this guild welcomes newly verified members.
@@ -179,8 +181,8 @@ class VerificationCog():
             return False
         return True
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def add_mandatory_role(self, ctx, role: discord.Role):
         """
         Add a role to the list of roles that *must* be given to a user on verification.
@@ -200,8 +202,8 @@ class VerificationCog():
             f"{ctx.author.mention} Role {role} has been added to this guild's mandatory roles"
         )
 
-    @discord.ext.commands.command()
-    @discord.ext.commands.has_permissions(administrator=True)
+    @command()
+    @has_permissions(administrator=True)
     async def add_standard_role(self, ctx, role: discord.Role):
         """
         Add a role to the list of roles given to a user on a standard verification.
@@ -221,10 +223,10 @@ class VerificationCog():
             f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
         )
 
-    @discord.ext.commands.command(
+    @command(
         help="Display the guild configuration."
     )
-    @discord.ext.commands.has_permissions(manage_roles=True)
+    @has_permissions(manage_roles=True)
     async def showsettings(self, ctx):
         """
         Check the stored guild configuration.
@@ -302,8 +304,7 @@ class VerificationCog():
         guild_info = await self.db.get_guild(ctx)
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
-        channel_converter = discord.ext.commands.TextChannelConverter()
-        welcome_channel = await channel_converter.convert(ctx, str(guild_info["welcome_channel"]))
+        welcome_channel = ctx.guild.get_channel(guild_info["welcome_channel"])
         await welcome_channel.send(guild_info["welcome_message"].format(new_member.mention))
 
     async def verify_helper(self, ctx, member: discord.Member, in_game_name, team, roles_to_apply):
@@ -345,7 +346,7 @@ class VerificationCog():
             elif team in valor_strings:
                 team_role = guild_info["valor_role"]
             else:
-                raise discord.ext.commands.BadArgument(
+                raise BadArgument(
                     f"Team must be one of the following (case-insensitive): " 
                     f"{'|'.join(instinct_strings + mystic_strings + valor_strings)}"
                 )
@@ -355,7 +356,7 @@ class VerificationCog():
             if len(roles_to_apply) == 0:
                 roles_to_add = guild_info["standard_roles"]
             else:
-                role_converter = discord.ext.commands.RoleConverter()
+                role_converter = RoleConverter()
                 roles_to_add = [await role_converter.convert(ctx, str(role)) for role in roles_to_apply]
 
             final_roles_to_add = list(set([team_role] + guild_info["mandatory_roles"] + roles_to_add))
@@ -380,12 +381,12 @@ class VerificationCog():
 
         await self.send_welcome_message(ctx, member)
 
-    @discord.ext.commands.command(
+    @command(
         help="Verify the specified member.",
         aliases=["v"],
         usage="verify [member] [team role] [optional: the member's requested roles]"
     )
-    @discord.ext.commands.has_permissions(manage_roles=True)
+    @has_permissions(manage_roles=True)
     async def verify(self, ctx, member: discord.Member, team: discord.Role, *regions):
         """
         Verify the specified user.
@@ -401,13 +402,13 @@ class VerificationCog():
         """
         await self.verify_helper(ctx, member, None, team, regions)
 
-    @discord.ext.commands.command(
+    @command(
         help="Verify the specified member and set their guild nick.",
         aliases=["nickv", "nv", "n"],
         usage='nickverify [member] [IGN] [team role] [optional region roles or "all"]'
     )
-    @discord.ext.commands.has_permissions(manage_roles=True)
-    @discord.ext.commands.has_permissions(manage_nicknames=True)
+    @has_permissions(manage_roles=True)
+    @has_permissions(manage_nicknames=True)
     async def nickverify(self, ctx, member: discord.Member, nick, team: discord.Role, *regions):
         """
         Verify the specified user and set their guild nick.
@@ -423,7 +424,7 @@ class VerificationCog():
         """
         await self.verify_helper(ctx, member, nick, team, regions)
 
-    @discord.ext.commands.command(
+    @command(
         help="Grant the calling member all region roles.",
     )
     async def standard(self, ctx):
@@ -456,12 +457,12 @@ class VerificationCog():
             access_granted_message_template.format(ctx.author.mention, role_str)
         )
 
-    @discord.ext.commands.command(
+    @command(
         help="Reset the specified member.",
         enabled=not settings.production  # only available when testing
     )
-    @discord.ext.commands.has_permissions(manage_roles=True)
-    @discord.ext.commands.has_permissions(manage_nicknames=True)
+    @has_permissions(manage_roles=True)
+    @has_permissions(manage_nicknames=True)
     async def reset(self, ctx, member: discord.Member):
         """
         Reset the member for testing.

@@ -1,6 +1,6 @@
 import sqlite3
 import discord
-from discord.ext.commands import RoleConverter, TextChannelConverter
+from discord.ext.commands import RoleConverter
 
 
 class GuildInfoDB(object):
@@ -84,7 +84,6 @@ class GuildInfoDB(object):
                 else:
                     standard_roles.append(role)
 
-        channel_converter = TextChannelConverter()
         log_channel = None
         screenshot_channel = None
         help_channel = None
@@ -96,11 +95,11 @@ class GuildInfoDB(object):
         welcome_message = guild_info_tuple[8]
         welcome_channel = None
         if guild_info_tuple[0] is not None:
-            log_channel = await channel_converter.convert(ctx, str(guild_info_tuple[0]))
+            log_channel = ctx.guild.get_channel(guild_info_tuple[0])
         if guild_info_tuple[1] is not None:
-            screenshot_channel = await channel_converter.convert(ctx, str(guild_info_tuple[1]))
+            screenshot_channel = ctx.guild.get_channel(guild_info_tuple[1])
         if guild_info_tuple[2] is not None:
-            help_channel = await channel_converter.convert(ctx, str(guild_info_tuple[2]))
+            help_channel = ctx.guild.get_channel(guild_info_tuple[2])
         if guild_info_tuple[4] is not None:
             welcome_role = await role_converter.convert(ctx, str(guild_info_tuple[4]))
         if guild_info_tuple[5] is not None:
@@ -110,7 +109,7 @@ class GuildInfoDB(object):
         if guild_info_tuple[7] is not None:
             valor_role = await role_converter.convert(ctx, str(guild_info_tuple[7]))
         if guild_info_tuple[9] is not None:
-            welcome_channel = await channel_converter.convert(ctx, str(guild_info_tuple[9]))
+            welcome_channel = ctx.guild.get_channel(guild_info_tuple[9])
         return {
             "log_channel": log_channel,
             "screenshot_channel": screenshot_channel,
