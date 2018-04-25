@@ -11,6 +11,36 @@ class VerificationCog():
     """
     A cog that handles verification of users in the GVRD guilds.
     """
+    summary_str_template = textwrap.dedent(
+        """\
+        Log channel: {}
+        Screenshot channel: {}
+        Help channel: {}
+        Welcome role: {}
+        Team roles: {} | {} | {}
+        Welcome channel: {}
+        Roles given on a standard verification:
+        {}
+        Roles that must be given during verification:
+        {}
+        Welcome message:
+        ----
+        {}
+        ----
+        Message sent when requesting a new screenshot:
+        ----
+        {}
+        ----
+        """
+    )
+
+    access_granted_message_template = textwrap.dedent(
+        """\
+        {} You have been granted access to the following:
+        {}
+        """
+    )
+
     def __init__(self, bot, db):
         self.bot = bot
         self.db = db  # a GuildInfoDB object or workalike
@@ -241,28 +271,6 @@ class VerificationCog():
             return
 
         guild_info = await self.db.get_guild(ctx)
-        summary_str_template = textwrap.dedent(
-            """\
-            Log channel: {}
-            Screenshot channel: {}
-            Help channel: {}
-            Welcome role: {}
-            Team roles: {} | {} | {}
-            Welcome channel: {}
-            Roles given on a standard verification:
-            {}
-            Roles that must be given during verification:
-            {}
-            Welcome message:
-            ----
-            {}
-            ----
-            Message sent when requesting a new screenshot:
-            ----
-            {}
-            ----
-            """
-        )
 
         role_list_strings = {}
         for role_type in ("standard", "mandatory"):
@@ -277,7 +285,7 @@ class VerificationCog():
         denied_message = guild_info["denied_message"] if guild_info["denied_message"] is not None else "(none)"
 
         await ctx.message.channel.send(
-            summary_str_template.format(
+            self.summary_str_template.format(
                 guild_info["log_channel"],
                 guild_info["screenshot_channel"],
                 guild_info["help_channel"],
@@ -440,13 +448,6 @@ class VerificationCog():
             roles=list(set(ctx.author.roles + guild_info["standard_roles"]))
         )
 
-        access_granted_message_template = textwrap.dedent(
-            """\
-            {} You have been granted access to the following:
-            {}
-            """
-        )
-
         role_str = "(none)"
         if len(guild_info["standard_roles"]) > 0:
             role_str = f" - {guild_info['standard_roles'][0]}"
@@ -454,7 +455,7 @@ class VerificationCog():
                 role_str += f"\n - {role}"
 
         await ctx.message.channel.send(
-            access_granted_message_template.format(ctx.author.mention, role_str)
+            self.access_granted_message_template.format(ctx.author.mention, role_str)
         )
 
     @command(
