@@ -63,8 +63,7 @@ class VerificationCog():
         """
         self.db.register_guild(ctx)
         await ctx.message.channel.send(
-            f'{ctx.author.mention} This guild has been registered '
-            f'with {self.bot.user.name} and may now be configured.'
+            f'{ctx.author.mention} This guild has been registered with {self.bot.user.name} and may now be configured.'
         )
 
     async def guild_registered(self, ctx):
