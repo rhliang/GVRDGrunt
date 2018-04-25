@@ -16,14 +16,14 @@ def main():
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
-    chespin = commands.Bot(
+    gvrd_grunt = commands.Bot(
         command_prefix=commands.when_mentioned_or("."),
         description="A grunt worker for the GVRD servers' needs"
     )
     db = GuildInfoDB(settings.sqlite_db)
-    chespin.add_cog(VerificationCog(chespin, db))
+    gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, db))
 
-    @chespin.event
+    @gvrd_grunt.event
     async def on_command_error(ctx, error):
         if isinstance(error, commands.CommandNotFound):
             return
@@ -48,7 +48,7 @@ def main():
 
     loop = asyncio.get_event_loop()
 
-    chespin.run(settings.token, loop=loop, bot=True)
+    gvrd_grunt.run(settings.token, loop=loop, bot=True)
 
 
 if __name__ == "__main__":
