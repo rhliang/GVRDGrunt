@@ -11,7 +11,7 @@ class GuildInfoDB(object):
         self.path_to_db = path_to_db
         self.conn = sqlite3.connect(self.path_to_db)  # database can be initialized with db_initialization.sql
 
-    def get_guild_screenshot_raw_info(self, guild):
+    def get_screenshot_handling_info(self, guild):
         """
         Return some raw guild information required for handling screenshots.
 
@@ -150,14 +150,15 @@ class GuildInfoDB(object):
         :param type: one of "log", "screenshot", or "help"
         :return:
         """
-        assert type in ("log", "screenshot", "help")
+        if type not in ("log", "screenshot", "help"):
+            raise discord.InvalidArgument('channel type must be one of "log", "screenshot", or "help"')
         with self.conn:
             self.conn.execute(
-                """
+                f"""
                 update guild_info
-                set {}_channel = ?
+                set {type}_channel = ?
                 where guild_id = ?;
-                """.format(type),
+                """,
                 (
                     channel.id,
                     ctx.guild.id
@@ -174,11 +175,11 @@ class GuildInfoDB(object):
         """
         with self.conn:
             self.conn.execute(
-                """
+                f"""
                 update guild_info
                 set denied_message = ?
                 where guild_id = ?;
-                """.format(type),
+                """,
                 (
                     denied_message,
                     ctx.guild.id
@@ -215,14 +216,16 @@ class GuildInfoDB(object):
         :param role:
         :return:
         """
-        assert team.lower() in ("instinct", "mystic", "valor")
+        team_lower = team.lower()
+        if team_lower not in ("instinct", "mystic", "valor"):
+            raise discord.InvalidArgument('team must be one of "instinct", "mystic", or "valor" (case-insensitive)')
         with self.conn:
             self.conn.execute(
-                """
+                f"""
                 update guild_info
-                set {}_role = ?
+                set {team_lower}_role = ?
                 where guild_id = ?;
-                """.format(team.lower()),
+                """,
                 (
                     role.id,
                     ctx.guild.id
