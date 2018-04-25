@@ -5,6 +5,7 @@ create table guild_info(
     log_channel,
     screenshot_channel,
     help_channel,
+    denied_message,
     welcome_role,
     instinct_role,
     mystic_role,

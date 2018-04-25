@@ -29,7 +29,7 @@ def main():
             return
 
         await ctx.message.channel.send(
-            "{} Command failed with message: {}".format(ctx.message.author.mention, error)
+            "{} {}".format(ctx.message.author.mention, error)
         )
 
 

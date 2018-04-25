@@ -41,6 +41,12 @@ class VerificationCog():
         """
     )
 
+    # Emoji that will be attached to screenshots.
+    approve = "✅"
+    deny = "❌"
+    approved = "👍"
+    denied = "👎"
+
     def __init__(self, bot, db):
         self.bot = bot
         self.db = db  # a GuildInfoDB object or workalike
@@ -183,6 +189,33 @@ class VerificationCog():
             f'{welcome_channel} with the message "{welcome_message}".'
         )
 
+    @command()
+    @has_permissions(administrator=True)
+    async def configure_denied_message(self, ctx, denied_message):
+        """
+        Configure how this guild messages members whose verification failed.
+
+        The denied message will be sent with a ping in the guild's help channel.
+        It should be a Python template string with a single {} where we will insert the
+        ping.
+
+        :param ctx:
+        :param welcome_channel:
+        :param welcome_message:
+        :return:
+        """
+        if not await self.guild_registered(ctx):
+            await ctx.message.channel.send(
+                f'{ctx.author.mention} The guild must first be registered with the bot.'
+            )
+            return
+
+        self.db.set_denied_message(ctx, denied_message)
+        await ctx.message.channel.send(
+            f'{ctx.author.mention} Members whose verification was denied will be pinged '
+            f'with the message "{denied_message}".'
+        )
+
     async def guild_fully_configured(self, ctx):
         """
         Confirms that the guild in question is ready to go.
@@ -199,15 +232,19 @@ class VerificationCog():
         guild_info = await self.db.get_guild(ctx)
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
-        if (guild_info["log_channel"] is None or
-                guild_info["screenshot_channel"] is None or
-                guild_info["help_channel"] is None or
-                guild_info["welcome_role"] is None or
-                guild_info["instinct_role"] is None or
-                guild_info["mystic_role"] is None or
-                guild_info["valor_role"] is None or
-                guild_info["welcome_message"] is None or
-                guild_info["welcome_channel"] is None):
+
+        must_be_set = [
+            "log_channel",
+            "screenshot_channel",
+            "help_channel",
+            "welcome_role",
+            "instinct_role",
+            "mystic_role",
+            "valor_role",
+            "welcome_message",
+            "welcome_channel"
+        ]
+        if any([guild_info[x] is None for x in must_be_set]):
             return False
         return True
 
@@ -266,7 +303,7 @@ class VerificationCog():
         """
         if not await self.guild_registered(ctx):
             await ctx.message.channel.send(
-                f'{ctx.author.mention} This guild must be registetered with {self.bot.user.name} first.'
+                f'{ctx.author.mention} This guild must be registered with {self.bot.user.name} first.'
             )
             return
 
@@ -306,13 +343,13 @@ class VerificationCog():
         Send the guild's configured welcome message to the new user.
 
         :param ctx:
-        :param new_user:
+        :param new_member:
         :return:
         """
         guild_info = await self.db.get_guild(ctx)
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
-        welcome_channel = ctx.guild.get_channel(guild_info["welcome_channel"])
+        welcome_channel = guild_info["welcome_channel"]
         await welcome_channel.send(guild_info["welcome_message"].format(new_member.mention))
 
     async def verify_helper(self, ctx, member: discord.Member, in_game_name, team, roles_to_apply):
@@ -345,7 +382,6 @@ class VerificationCog():
             instinct_strings = ["instinct", "i", "yellow", "y"]
             mystic_strings = ["mystic", "m", "blue", "b"]
             valor_strings = ["valor", "v", "red", "r"]
-            team_role = None
             team = team.lower()
             if team in instinct_strings:
                 team_role = guild_info["instinct_role"]
@@ -367,24 +403,24 @@ class VerificationCog():
                 role_converter = RoleConverter()
                 roles_to_add = [await role_converter.convert(ctx, str(role)) for role in roles_to_apply]
 
-            final_roles_to_add = list(set([team_role] + guild_info["mandatory_roles"] + roles_to_add))
+            other_roles_to_add = list(set(guild_info["mandatory_roles"] + roles_to_add))
 
-            if in_game_name is not None:
-                await member.edit(
-                    roles=final_roles_to_add,
-                    nick=in_game_name,
-                    reason=f"Verified by {message.author.mention} using {self.bot.user.name}"
-                )
-            else:
-                await member.edit(
-                    roles=final_roles_to_add,
-                    reason=f"Verified by {message.author.mention} using {self.bot.user.name}"
-                )
+            await member.edit(
+                roles=[team_role] + other_roles_to_add,
+                nick=in_game_name,
+                reason=f"Verified by {message.author.mention} using {self.bot.user.name}"
+            )
 
-            self.member_approved(member)
+            roles_added_str = "(none)"
+            if len(other_roles_to_add) > 0:
+                roles_added_str = f" - {other_roles_to_add[0]}"
+                for role in other_roles_to_add[1:]:
+                    roles_added_str += f"\n - {role}"
+
+            await self.member_approved(member)
             await message.channel.send(
                 f"{message.author.mention} Member {member} has been verified with team {team_role} " 
-                f"and roles {'|'.join(list(set(roles_to_add + guild_info['mandatory_roles'])))}."
+                f"and roles:\n{roles_added_str}"
             )
 
         await self.send_welcome_message(ctx, member)
@@ -395,7 +431,7 @@ class VerificationCog():
         usage="verify [member] [team role] [optional: the member's requested roles]"
     )
     @has_permissions(manage_roles=True)
-    async def verify(self, ctx, member: discord.Member, team: discord.Role, *regions):
+    async def verify(self, ctx, member: discord.Member, team, *regions):
         """
         Verify the specified user.
 
@@ -404,7 +440,7 @@ class VerificationCog():
 
         :param ctx: context that includes the message
         :param member: a Discord member
-        :param team: the Discord role representing their team
+        :param team:
         :param regions: zero, one, or several region roles
         :return:
         """
@@ -417,7 +453,7 @@ class VerificationCog():
     )
     @has_permissions(manage_roles=True)
     @has_permissions(manage_nicknames=True)
-    async def nickverify(self, ctx, member: discord.Member, nick, team: discord.Role, *regions):
+    async def nickverify(self, ctx, member: discord.Member, nick, team, *regions):
         """
         Verify the specified user and set their guild nick.
 
@@ -510,19 +546,19 @@ class VerificationCog():
 
         If this member has no previous messages being tracked, start tracking their messages.
         If there is a previous message, forget the old one and start tracking this one.
-        Add a :white_check_mark: reaction and an :x: reaction.
+        Add reactions that can be used to mark as accepted or denied.
 
         :return:
         """
         # Having reached here, we know that this message is in the appropriate channel,
         # sent by someone with the Welcome role, and contains an attachment (presumably a screenshot).
         await screenshot_message.clear_reactions()
-        screenshot_message.add_reaction("white_check_mark")
-        screenshot_message.add_reaction("x")
+        await screenshot_message.add_reaction(self.approve)
+        await screenshot_message.add_reaction(self.deny)
 
         original_screenshot = self.member_to_screenshot.get(screenshot_message.author, None)
         if original_screenshot is not None:
-            original_screenshot.clear_reactions()
+            await original_screenshot.clear_reactions()
             del self.screenshot_to_member[original_screenshot]
 
         self.member_to_screenshot[screenshot_message.author] = screenshot_message
@@ -535,10 +571,14 @@ class VerificationCog():
         :param message:
         :return:
         """
+        # Do nothing if the guild isn't fully configured yet.
+        if self.db.get_screenshot_handling_info(message.guild) is None:
+            return
+
         if self.is_welcome_member_screenshot(message):
             await self.welcome_member_screenshot_received(message)
 
-    def member_approved(self, member):
+    async def member_approved(self, member):
         """
         This member has been approved, so remove them and their screenshot from tracking.
 
@@ -553,8 +593,8 @@ class VerificationCog():
         if screenshot_message in self.screenshot_to_member:
             del self.screenshot_to_member[screenshot_message]
 
-        screenshot_message.clear_reactions()
-        screenshot_message.add_reaction("thumbsup")
+        await screenshot_message.clear_reactions()
+        await screenshot_message.add_reaction(self.approved)
         del self.member_to_screenshot[member]
 
     async def on_reaction_add(self, reaction, user):
@@ -565,26 +605,31 @@ class VerificationCog():
         :param user:
         :return:
         """
+        # Do nothing if the guild isn't fully configured yet.
+        if self.db.get_screenshot_handling_info(reaction.message.guild) is None:
+            return
+
         guild_screenshot_raw_info = self.db.get_screenshot_handling_info(reaction.message.guild)
         if reaction.message.channel.id != guild_screenshot_raw_info["screenshot_channel_id"]:
             return
         reacting_member = reaction.message.guild.get_member(user.id)
-        if not reacting_member.manage_roles or not reacting_member.manage_nicknames:
+        if reacting_member == reaction.message.guild.get_member(self.bot.user.id):
             return
-
+        reactor_permissions = reacting_member.permissions_in(reaction.message.channel)
+        if not reactor_permissions.manage_roles or not reactor_permissions.manage_nicknames:
+            return
         if reaction.message not in self.screenshot_to_member:
             return
-
-        if str(reaction) not in ("white_check_mark", "x"):
+        if str(reaction) not in (self.approve, self.deny):
             return
 
         # Having reached this point, we know that this reaction was added to a Welcome screenshot
         # by a moderator.
         member_to_verify = self.screenshot_to_member[reaction.message]
-        if str(reaction) == "white_check_mark":
-            self.member_approved(member_to_verify)
+        if str(reaction) == self.approve:
+            await self.member_approved(member_to_verify)
         else:
-            self.deny_member(member_to_verify)
+            await self.deny_member(member_to_verify)
 
     async def deny_member(self, member):
         """
@@ -595,12 +640,11 @@ class VerificationCog():
         """
         screenshot_message = self.member_to_screenshot.get(member, None)
         if screenshot_message is not None:
-            screenshot_message.clear_reactions()
-            screenshot_message.add_reaction("thumbsdown")
+            await screenshot_message.clear_reactions()
+            await screenshot_message.add_reaction(self.denied)
             del self.member_to_screenshot[member]
             del self.screenshot_to_member[screenshot_message]
 
         guild_screenshot_raw_info = self.db.get_screenshot_handling_info(member.guild)
         help_channel = member.guild.get_channel(guild_screenshot_raw_info["help_channel_id"])
-
         await help_channel.send(guild_screenshot_raw_info["denied_message"].format(member.mention))
