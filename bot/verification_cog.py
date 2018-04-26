@@ -289,6 +289,28 @@ class VerificationCog():
             f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
         )
 
+    @command()
+    @has_permissions(administrator=True)
+    async def clear_standard_roles(self, ctx):
+        """
+        Clear the list of roles given to a user on a standard verification.
+
+        This removes both the standard roles and the mandatory roles.
+
+        :param ctx:
+        :return:
+        """
+        if not await self.guild_fully_configured(ctx):
+            await ctx.message.channel.send(
+                f'{ctx.author.mention} Basic guild configuration must be finished before adding standard roles.'
+            )
+            return
+
+        self.db.clear_standard_roles(ctx)
+        await ctx.message.channel.send(
+            f"{ctx.author.mention} All standard roles given on verification have been cleared."
+        )
+
     @command(
         help="Display the guild configuration."
     )
@@ -493,10 +515,7 @@ class VerificationCog():
             self.access_granted_message_template.format(ctx.author.mention, role_str)
         )
 
-    @command(
-        help="Reset the specified member.",
-        enabled=not settings.production  # only available when testing
-    )
+    @command(help="Reset the specified member.")
     @has_permissions(manage_roles=True)
     @has_permissions(manage_nicknames=True)
     async def reset(self, ctx, member: discord.Member):

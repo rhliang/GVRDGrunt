@@ -275,3 +275,16 @@ class GuildInfoDB(object):
                     mandatory
                 )
             )
+
+    def clear_standard_roles(self, ctx):
+        """
+        Remove all guild roles from the database -- e.g. if a mistake was made entering them.
+
+        :param ctx:
+        :return:
+        """
+        with self.conn:
+            self.conn.execute(
+                "delete from guild_standard_roles where guild_id = ?;",
+                (ctx.guild.id,)
+            )
