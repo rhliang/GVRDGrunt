@@ -2,8 +2,6 @@ import textwrap
 import discord
 from discord.ext.commands import command, has_permissions, BadArgument, RoleConverter
 
-from bot import settings
-
 __author__ = 'Richard Liang'
 
 

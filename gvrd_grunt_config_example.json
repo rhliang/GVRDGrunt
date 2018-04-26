@@ -1,0 +1,5 @@
+{
+  "token": "[enter your token here]",
+  "sqlite_db": "[absolute path to SQLite database file]",
+  "command_prefix": "."
+}

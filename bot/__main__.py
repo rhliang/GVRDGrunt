@@ -7,7 +7,6 @@ from discord.ext import commands
 
 from bot.verification_cog import VerificationCog
 from bot.guild_info_db import GuildInfoDB
-from bot import settings
 
 __author__ = "Richard Liang"
 
@@ -15,13 +14,18 @@ __author__ = "Richard Liang"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--config_json", help="JSON file containing the required configuration",
+                        default="./gvrd_grunt_config.json")
     args = parser.parse_args()
 
+    with open(args.config_json, "rb") as f:
+        settings = json.load(f)
+
     gvrd_grunt = commands.Bot(
-        command_prefix=commands.when_mentioned_or("."),
+        command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
         description="A grunt worker for the GVRD servers' needs"
     )
-    db = GuildInfoDB(settings.sqlite_db)
+    db = GuildInfoDB(settings["sqlite_db"])
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, db))
 
     @gvrd_grunt.event
@@ -49,9 +53,7 @@ def main():
 
     loop = asyncio.get_event_loop()
 
-    with open(settings.discord_token_file, "r") as f:
-        token = json.load(f)["token"]
-    gvrd_grunt.run(token, loop=loop, bot=True)
+    gvrd_grunt.run(settings["token"], loop=loop, bot=True)
 
 
 if __name__ == "__main__":
