@@ -14,11 +14,11 @@ __author__ = "Richard Liang"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--config_json", help="JSON file containing the required configuration",
+    parser.add_argument("--config", help="JSON file containing the required configuration",
                         default="./gvrd_grunt_config.json")
     args = parser.parse_args()
 
-    with open(args.config_json, "rb") as f:
+    with open(args.config, "rb") as f:
         settings = json.load(f)
 
     gvrd_grunt = commands.Bot(
@@ -37,8 +37,7 @@ def main():
             "{} {}".format(ctx.message.author.mention, error)
         )
 
-
-    file_handler = logging.FileHandler(filename="output.log", encoding="utf-8", mode="w")
+    file_handler = logging.FileHandler(filename=settings["log_file"], encoding="utf-8", mode="w")
 
     handlers = [file_handler, logging.StreamHandler()]
 
