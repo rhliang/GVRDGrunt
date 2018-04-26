@@ -2,7 +2,7 @@ FROM python:3.6-alpine
 
 WORKDIR /app
 
-ADD bot /app
+ADD bot /app/bot
 ADD requirements.txt /app
 
 RUN apk update
