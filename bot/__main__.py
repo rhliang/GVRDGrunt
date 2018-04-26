@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import argparse
+import json
 
 from discord.ext import commands
 
@@ -48,7 +49,9 @@ def main():
 
     loop = asyncio.get_event_loop()
 
-    gvrd_grunt.run(settings.token, loop=loop, bot=True)
+    with open(settings.discord_token_file, "r") as f:
+        token = json.load(f)["token"]
+    gvrd_grunt.run(token, loop=loop, bot=True)
 
 
 if __name__ == "__main__":
