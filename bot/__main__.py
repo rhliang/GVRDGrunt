@@ -6,7 +6,7 @@ import json
 from discord.ext import commands
 
 from bot.verification_cog import VerificationCog
-from bot.guild_info_db import GuildInfoDB
+from bot.verification_db import GuildInfoDB
 
 __author__ = "Richard Liang"
 

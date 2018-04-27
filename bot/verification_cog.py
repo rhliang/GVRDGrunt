@@ -2,36 +2,23 @@ import textwrap
 import discord
 from discord.ext.commands import command, has_permissions, BadArgument, RoleConverter
 
+from bot.convert_using_guild import role_converter_from_name
+
 __author__ = 'Richard Liang'
+
+
+class VerificationNotRegistered(Exception):
+    pass
+
+
+class VerificationNotConfigured(Exception):
+    pass
 
 
 class VerificationCog():
     """
     A cog that handles verification of users in the GVRD guilds.
     """
-    summary_str_template = textwrap.dedent(
-        """\
-        Log channel: {}
-        Screenshot channel: {}
-        Help channel: {}
-        Welcome role: {}
-        Team roles: {} | {} | {}
-        Welcome channel: {}
-        Roles given on a standard verification:
-        {}
-        Roles that must be given during verification:
-        {}
-        Welcome message:
-        ----
-        {}
-        ----
-        Message sent when requesting a new screenshot:
-        ----
-        {}
-        ----
-        """
-    )
-
     access_granted_message_template = textwrap.dedent(
         """\
         {} You have been granted access to the following:
@@ -40,7 +27,6 @@ class VerificationCog():
     )
 
     # Emoji that will be attached to screenshots.
-    approve = "✅"
     deny = "❌"
     approved = "👍"
     denied = "👎"
@@ -59,23 +45,29 @@ class VerificationCog():
         :param ctx:
         :return:
         """
-        self.db.register_guild(ctx)
+        self.db.register_guild(ctx.guild)
         await ctx.message.channel.send(
             f'{ctx.author.mention} This guild has been registered with {self.bot.user.name} and may now be configured.'
         )
 
-    async def guild_registered(self, ctx):
+    def is_guild_registered(self, guild):
         """
-        Confirms that the guild in question has been registered in the database.
-
-        This will be used before every command, meaning that the first thing you do
-        in a guild will have to be registering it with the bot.
+        Return True if guild is registered in the database; False otherwise.
 
         :param guild:
         :return:
         """
-        guild_info = await self.db.get_guild(ctx)
+        guild_info = self.db.get_verification_info(guild)
         return guild_info is not None
+
+    def guild_registered_validator(self, guild):
+        """
+        Raises a VerificationNotRegistered exception if the guild is not registered in the database.
+        :param guild:
+        :return:
+        """
+        if not self.is_guild_registered(guild):
+            raise VerificationNotRegistered("The guild must first be registered with the bot.")
 
     @command()
     @has_permissions(administrator=True)
@@ -87,12 +79,7 @@ class VerificationCog():
         :param channel:
         :return:
         """
-        if not await self.guild_registered(ctx):
-            await ctx.message.channel.send(f'{ctx.author.mention} The guild must first be registered with the bot.')
-            return
-
-        if channel_type not in ("screenshot", "help", "log"):
-            raise BadArgument("Channel type must be one of screenshot, help, or log.")
+        self.guild_registered_validator(ctx.guild)
 
         # First, check that the client can write to this channel.
         channel_perms = channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
@@ -102,10 +89,8 @@ class VerificationCog():
             )
             return
 
-        self.db.set_channel(ctx, channel, channel_type)
-        await ctx.message.channel.send(
-            f'{ctx.author.mention} {channel_type} channel set to {channel}.'
-        )
+        self.db.set_channel(ctx.guild, channel, channel_type)  # this may raise BadArgument
+        await ctx.message.channel.send(f'{ctx.author.mention} {channel_type} channel set to {channel}.')
 
     @command()
     @has_permissions(administrator=True)
@@ -118,20 +103,32 @@ class VerificationCog():
         :param role:
         :return:
         """
-        if not await self.guild_registered(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} The guild must first be registered with the bot.'
-            )
-            return
+        self.guild_registered_validator(ctx.guild)
 
-        self.db.set_welcome_role(ctx, role)
+        self.db.set_welcome_role(ctx.guild, role)
+        await ctx.message.channel.send(f"{ctx.author.mention} This guild's welcome role has been set to: {role.id}")
+
+    @command()
+    @has_permissions(administrator=True)
+    async def configure_team_emoji(self, ctx, team, emoji):
+        """
+        Update the guild information in the database with the given team's emoji.
+
+        :param ctx:
+        :param team:
+        :param emoji:
+        :return:
+        """
+        self.guild_registered_validator(ctx.guild)
+
+        self.db.set_team_emoji(ctx.guild, team, emoji)
         await ctx.message.channel.send(
-            f"{ctx.author.mention} This guild's welcome role has been set to: {role.id}"
+            f'{ctx.author.mention} Guild information has been updated: {team.lower()} emoji is {emoji}.'
         )
 
     @command()
     @has_permissions(administrator=True)
-    async def configure_guild_team(self, ctx, team, role: discord.Role):
+    async def configure_team_role(self, ctx, team, role: discord.Role):
         """
         Update the guild information in the database with the given team's snowflake.
 
@@ -140,13 +137,9 @@ class VerificationCog():
         :param role:
         :return:
         """
-        if not await self.guild_registered(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} The guild must first be registered with the bot.'
-            )
-            return
+        self.guild_registered_validator(ctx.guild)
 
-        self.db.set_team_role(ctx, team, role)
+        self.db.set_team_role(ctx.guild, team, role)
         await ctx.message.channel.send(
             f'{ctx.author.mention} Guild information has been updated: {team.lower()} role is {role.id}.'
         )
@@ -166,11 +159,7 @@ class VerificationCog():
         :param welcome_message:
         :return:
         """
-        if not await self.guild_registered(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} The guild must first be registered with the bot.'
-            )
-            return
+        self.guild_registered_validator(ctx.guild)
 
         # First, check that the client can write to this channel.
         channel_perms = welcome_channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
@@ -180,7 +169,7 @@ class VerificationCog():
             )
             return
 
-        self.db.set_welcome(ctx, welcome_message, welcome_channel)
+        self.db.set_welcome(ctx.guild, welcome_message, welcome_channel)
         await ctx.message.channel.send(
             f'{ctx.author.mention} New users will be welcomed in channel '
             f'{welcome_channel} with the message "{welcome_message}".'
@@ -201,19 +190,15 @@ class VerificationCog():
         :param welcome_message:
         :return:
         """
-        if not await self.guild_registered(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} The guild must first be registered with the bot.'
-            )
-            return
+        self.guild_registered_validator(ctx.guild)
 
-        self.db.set_denied_message(ctx, denied_message)
+        self.db.set_denied_message(ctx.guild, denied_message)
         await ctx.message.channel.send(
             f'{ctx.author.mention} Members whose verification was denied will be pinged '
             f'with the message "{denied_message}".'
         )
 
-    async def guild_fully_configured(self, ctx):
+    def guild_fully_configured(self, guild):
         """
         Confirms that the guild in question is ready to go.
 
@@ -223,27 +208,27 @@ class VerificationCog():
         :param ctx:
         :return:
         """
-        if not await self.guild_registered(ctx):
+        if not self.is_guild_registered(guild):
             return False
 
-        guild_info = await self.db.get_guild(ctx)
+        guild_info = self.db.get_verification_info(guild)
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
 
-        must_be_set = [
-            "log_channel",
-            "screenshot_channel",
-            "help_channel",
-            "welcome_role",
-            "instinct_role",
-            "mystic_role",
-            "valor_role",
-            "welcome_message",
-            "welcome_channel"
-        ]
+        must_be_set = [field_name for field_name, _ in self.db.all_fields]
         if any([guild_info[x] is None for x in must_be_set]):
             return False
         return True
+
+    def guild_fully_configured_validator(self, guild):
+        """
+        Raises a VerificationNotConfigured exception if the guild is not fully configured.
+
+        :param guild:
+        :return:
+        """
+        if not self.guild_fully_configured(guild):
+            raise VerificationNotConfigured("Basic guild configuration must be finished first.")
 
     @command()
     @has_permissions(administrator=True)
@@ -255,13 +240,9 @@ class VerificationCog():
         :param role:
         :return:
         """
-        if not await self.guild_fully_configured(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} Basic guild configuration must be finished before adding mandatory roles.'
-            )
-            return
+        self.guild_fully_configured_validator(ctx.guild)
 
-        self.db.add_standard_role(ctx, role, mandatory=True)
+        self.db.add_standard_role(ctx.guild, role, mandatory=True)
         await ctx.message.channel.send(
             f"{ctx.author.mention} Role {role} has been added to this guild's mandatory roles"
         )
@@ -276,20 +257,16 @@ class VerificationCog():
         :param role:
         :return:
         """
-        if not await self.guild_fully_configured(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} Basic guild configuration must be finished before adding standard roles.'
-            )
-            return
+        self.guild_fully_configured_validator(ctx.guild)
 
-        self.db.add_standard_role(ctx, role, mandatory=False)
+        self.db.add_standard_role(ctx.guild, role, mandatory=False)
         await ctx.message.channel.send(
             f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
         )
 
     @command()
     @has_permissions(administrator=True)
-    async def clear_standard_roles(self, ctx):
+    async def clear_roles(self, ctx):
         """
         Clear the list of roles given to a user on a standard verification.
 
@@ -298,20 +275,37 @@ class VerificationCog():
         :param ctx:
         :return:
         """
-        if not await self.guild_fully_configured(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} Basic guild configuration must be finished before adding standard roles.'
-            )
-            return
+        self.guild_fully_configured_validator(ctx.guild)
 
-        self.db.clear_standard_roles(ctx)
+        self.db.clear_roles(ctx.guild)
         await ctx.message.channel.send(
-            f"{ctx.author.mention} All standard roles given on verification have been cleared."
+            f"{ctx.author.mention} All standard and mandatory roles given on verification have been cleared."
         )
 
-    @command(
-        help="Display the guild configuration."
+    summary_str_template = textwrap.dedent(
+        """\
+        Screenshot channel: {}
+        Help channel: {}
+        Welcome role: {}
+        Team roles: {} | {} | {}
+        Team emoji: {} | {} | {}
+        Welcome channel: {}
+        Roles given on a standard verification:
+        {}
+        Roles that must be given during verification:
+        {}
+        Welcome message:
+        ----
+        {}
+        ----
+        Message sent when requesting a new screenshot:
+        ----
+        {}
+        ----
+        """
     )
+
+    @command(help="Display the guild configuration.")
     @has_permissions(manage_roles=True)
     async def showsettings(self, ctx):
         """
@@ -320,13 +314,9 @@ class VerificationCog():
         :param ctx:
         :return:
         """
-        if not await self.guild_registered(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} This guild must be registered with {self.bot.user.name} first.'
-            )
-            return
+        self.guild_registered_validator(ctx.guild)
 
-        guild_info = await self.db.get_guild(ctx)
+        guild_info = self.db.get_verification_info(ctx.guild)
 
         role_list_strings = {}
         for role_type in ("standard", "mandatory"):
@@ -342,13 +332,15 @@ class VerificationCog():
 
         await ctx.message.channel.send(
             self.summary_str_template.format(
-                guild_info["log_channel"],
                 guild_info["screenshot_channel"],
                 guild_info["help_channel"],
                 guild_info["welcome_role"],
                 guild_info["instinct_role"],
                 guild_info["mystic_role"],
                 guild_info["valor_role"],
+                guild_info["instinct_emoji"],
+                guild_info["mystic_emoji"],
+                guild_info["valor_emoji"],
                 guild_info["welcome_channel"],
                 role_list_strings["standard"],
                 role_list_strings["mandatory"],
@@ -357,15 +349,15 @@ class VerificationCog():
             )
         )
 
-    async def send_welcome_message(self, ctx, new_member: discord.Member):
+    async def send_welcome_message(self, guild, new_member: discord.Member):
         """
         Send the guild's configured welcome message to the new user.
 
-        :param ctx:
+        :param guild:
         :param new_member:
         :return:
         """
-        guild_info = await self.db.get_guild(ctx)
+        guild_info = self.db.get_verification_info(guild)
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
         welcome_channel = guild_info["welcome_channel"]
@@ -379,18 +371,14 @@ class VerificationCog():
         :param member: a Discord member
         :param in_game_name: the IGN for the user (may be None, in which case don't set it)
         :param team: one of "instinct|mystic|valor|i|m|v|blue|yellow|red|b|y|r", case-insensitive
-        :param roles_to_apply: a list representing roles that should be applied
+        :param roles_to_apply: a list of role names that should be applied
         :return:
         """
-        if not await self.guild_fully_configured(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} This guild is not fully set up yet.'
-            )
-            return
+        self.guild_fully_configured_validator(ctx.guild)
 
         message = ctx.message
         async with message.channel.typing():
-            guild_info = await self.db.get_guild(ctx)
+            guild_info = self.db.get_verification_info(ctx.guild)
             if guild_info["welcome_role"] not in member.roles:
                 await message.channel.send(
                     f"{message.author.mention} The specified member is not in the Welcome role."
@@ -419,8 +407,7 @@ class VerificationCog():
             if len(roles_to_apply) == 0:
                 roles_to_add = guild_info["standard_roles"]
             else:
-                role_converter = RoleConverter()
-                roles_to_add = [await role_converter.convert(ctx, str(role)) for role in roles_to_apply]
+                roles_to_add = [role_converter_from_name(ctx.guild, str(role)) for role in roles_to_apply]
 
             other_roles_to_add = list(set(guild_info["mandatory_roles"] + roles_to_add))
 
@@ -442,7 +429,7 @@ class VerificationCog():
                 f"and roles:\n{roles_added_str}"
             )
 
-        await self.send_welcome_message(ctx, member)
+        await self.send_welcome_message(ctx.guild, member)
 
     @command(
         help="Verify the specified member.",
@@ -487,9 +474,7 @@ class VerificationCog():
         """
         await self.verify_helper(ctx, member, nick, team, regions)
 
-    @command(
-        help="Grant the calling member all region roles.",
-    )
+    @command(help="Grant the calling member all region roles.")
     async def standard(self, ctx):
         """
         Grant the calling member all standard roles.
@@ -498,7 +483,9 @@ class VerificationCog():
         :param member: a Discord member
         :return:
         """
-        guild_info = await self.db.get_guild(ctx)
+        self.guild_fully_configured_validator(ctx.guild)
+
+        guild_info = self.db.get_verification_info(ctx.guild)
         await ctx.author.edit(
             roles=list(set(ctx.author.roles + guild_info["standard_roles"]))
         )
@@ -509,9 +496,7 @@ class VerificationCog():
             for role in guild_info["standard_roles"][1:]:
                 role_str += f"\n - {role}"
 
-        await ctx.message.channel.send(
-            self.access_granted_message_template.format(ctx.author.mention, role_str)
-        )
+        await ctx.message.channel.send(self.access_granted_message_template.format(ctx.author.mention, role_str))
 
     @command(help="Reset the specified member.")
     @has_permissions(manage_roles=True)
@@ -526,14 +511,10 @@ class VerificationCog():
         :param member: a Discord member
         :return:
         """
-        if not await self.guild_fully_configured(ctx):
-            await ctx.message.channel.send(
-                f'{ctx.author.mention} This guild is not fully set up yet.'
-            )
-            return
+        self.guild_fully_configured_validator(ctx.guild)
 
         async with ctx.message.channel.typing():
-            guild_info = await self.db.get_guild(ctx)
+            guild_info = self.db.get_verification_info(ctx.guild)
             await member.edit(
                 roles=[guild_info["welcome_role"]],
                 nick=None,
@@ -556,7 +537,7 @@ class VerificationCog():
             return False
         return True
 
-    async def welcome_member_screenshot_received(self, screenshot_message):
+    async def welcome_member_screenshot_received(self, screenshot_message, instinct_emoji, mystic_emoji, valor_emoji):
         """
         On receipt of a Welcome member's screenshot, track this message and its reactions.
 
@@ -564,12 +545,18 @@ class VerificationCog():
         If there is a previous message, forget the old one and start tracking this one.
         Add reactions that can be used to mark as accepted or denied.
 
+        :param screenshot_message:
+        :param instinct_emoji:
+        :param mystic_emoji:
+        :param valor_emoji:
         :return:
         """
         # Having reached here, we know that this message is in the appropriate channel,
         # sent by someone with the Welcome role, and contains an attachment (presumably a screenshot).
         await screenshot_message.clear_reactions()
-        await screenshot_message.add_reaction(self.approve)
+        await screenshot_message.add_reaction(instinct_emoji)
+        await screenshot_message.add_reaction(mystic_emoji)
+        await screenshot_message.add_reaction(valor_emoji)
         await screenshot_message.add_reaction(self.deny)
 
         original_screenshot = self.member_to_screenshot.get(screenshot_message.author, None)
@@ -621,12 +608,12 @@ class VerificationCog():
         :param user:
         :return:
         """
+        screenshot_raw_info = self.db.get_screenshot_handling_info(reaction.message.guild)
         # Do nothing if the guild isn't fully configured yet.
-        if self.db.get_screenshot_handling_info(reaction.message.guild) is None:
+        if screenshot_raw_info is None:
             return
 
-        guild_screenshot_raw_info = self.db.get_screenshot_handling_info(reaction.message.guild)
-        if reaction.message.channel.id != guild_screenshot_raw_info["screenshot_channel_id"]:
+        if reaction.message.channel.id != screenshot_raw_info["screenshot_channel_id"]:
             return
         reacting_member = reaction.message.guild.get_member(user.id)
         if reacting_member == reaction.message.guild.get_member(self.bot.user.id):
@@ -636,12 +623,23 @@ class VerificationCog():
             return
         if reaction.message not in self.screenshot_to_member:
             return
-        if str(reaction) not in (self.approve, self.deny):
+
+        # Convert the stored emoji data into an actual emoji (either string or discord.Emoji object).
+        team_emoji = {}
+        for team in ("instinct", "mystic", "valor"):
+            team_emoji[team] = screenshot_raw_info[f"{team}_emoji"]
+            if screenshot_raw_info[f"{team}_emoji_type"] == "custom":
+                team_emoji[team] = self.bot.get_emoji(screenshot_raw_info[f"{team}_emoji"])
+
+        if reaction.emoji not in team_emoji.values() and reaction.emoji != self.deny:
             return
 
         # Having reached this point, we know that this reaction was added to a Welcome screenshot
         # by a moderator.
         member_to_verify = self.screenshot_to_member[reaction.message]
+        for team in ("instinct", "mystic", "valor"):
+            if reaction.emoji == team_emoji[team]:
+                await self.verify
         if str(reaction) == self.approve:
             await self.member_approved(member_to_verify)
         else:

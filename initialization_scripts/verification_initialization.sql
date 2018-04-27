@@ -2,7 +2,6 @@
 
 create table guild_info(
     guild_id primary key,
-    log_channel,
     screenshot_channel,
     help_channel,
     denied_message,
@@ -10,6 +9,12 @@ create table guild_info(
     instinct_role,
     mystic_role,
     valor_role,
+    instinct_emoji,
+    instinct_emoji_type,
+    mystic_emoji,
+    mystic_emoji_type,
+    valor_emoji,
+    valor_emoji_type,
     welcome_message,
     welcome_channel
 );
