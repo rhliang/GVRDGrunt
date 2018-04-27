@@ -363,25 +363,27 @@ class VerificationCog():
         welcome_channel = guild_info["welcome_channel"]
         await welcome_channel.send(guild_info["welcome_message"].format(new_member.mention))
 
-    async def verify_helper(self, ctx, member: discord.Member, in_game_name, team, roles_to_apply):
+    async def verify_helper(self, guild, verifier, reply_channel, member: discord.Member,
+                            in_game_name, team, roles_to_apply):
         """
         Helper function that performs the work of both verify and nickverify.
 
-        :param ctx: context that includes the message
+        :param guild:
+        :param verifier: a Discord member who is doing the verification
+        :param reply_channel: channel to respond to the verifier in
         :param member: a Discord member
         :param in_game_name: the IGN for the user (may be None, in which case don't set it)
         :param team: one of "instinct|mystic|valor|i|m|v|blue|yellow|red|b|y|r", case-insensitive
         :param roles_to_apply: a list of role names that should be applied
         :return:
         """
-        self.guild_fully_configured_validator(ctx.guild)
+        self.guild_fully_configured_validator(guild)
 
-        message = ctx.message
-        async with message.channel.typing():
-            guild_info = self.db.get_verification_info(ctx.guild)
+        async with reply_channel.typing():
+            guild_info = self.db.get_verification_info(guild)
             if guild_info["welcome_role"] not in member.roles:
-                await message.channel.send(
-                    f"{message.author.mention} The specified member is not in the Welcome role."
+                await reply_channel.send(
+                    f"{verifier.mention} The specified member is not in the Welcome role."
                 )
                 return
 
@@ -407,14 +409,14 @@ class VerificationCog():
             if len(roles_to_apply) == 0:
                 roles_to_add = guild_info["standard_roles"]
             else:
-                roles_to_add = [role_converter_from_name(ctx.guild, str(role)) for role in roles_to_apply]
+                roles_to_add = [role_converter_from_name(guild, str(role)) for role in roles_to_apply]
 
             other_roles_to_add = list(set(guild_info["mandatory_roles"] + roles_to_add))
 
             await member.edit(
                 roles=[team_role] + other_roles_to_add,
                 nick=in_game_name,
-                reason=f"Verified by {message.author.mention} using {self.bot.user.name}"
+                reason=f"Verified by {verifier.mention} using {self.bot.user.name}"
             )
 
             roles_added_str = "(none)"
@@ -424,12 +426,12 @@ class VerificationCog():
                     roles_added_str += f"\n - {role}"
 
             await self.member_approved(member)
-            await message.channel.send(
-                f"{message.author.mention} Member {member} has been verified with team {team_role} " 
+            await reply_channel.send(
+                f"{verifier.mention} Member {member} has been verified with team {team_role} " 
                 f"and roles:\n{roles_added_str}"
             )
 
-        await self.send_welcome_message(ctx.guild, member)
+        await self.send_welcome_message(guild, member)
 
     @command(
         help="Verify the specified member.",
@@ -450,7 +452,7 @@ class VerificationCog():
         :param regions: zero, one, or several region roles
         :return:
         """
-        await self.verify_helper(ctx, member, None, team, regions)
+        await self.verify_helper(ctx.guild, ctx.message.author, ctx.message.channel, member, None, team, regions)
 
     @command(
         help="Verify the specified member and set their guild nick.",
@@ -472,7 +474,7 @@ class VerificationCog():
         :param regions:
         :return:
         """
-        await self.verify_helper(ctx, member, nick, team, regions)
+        await self.verify_helper(ctx.guild, ctx.message.author, ctx.message.channel, member, nick, team, regions)
 
     @command(help="Grant the calling member all region roles.")
     async def standard(self, ctx):
@@ -637,13 +639,21 @@ class VerificationCog():
         # Having reached this point, we know that this reaction was added to a Welcome screenshot
         # by a moderator.
         member_to_verify = self.screenshot_to_member[reaction.message]
-        for team in ("instinct", "mystic", "valor"):
-            if reaction.emoji == team_emoji[team]:
-                await self.verify
-        if str(reaction) == self.approve:
-            await self.member_approved(member_to_verify)
-        else:
+
+        if reaction.emoji == self.deny:
             await self.deny_member(member_to_verify)
+        else:
+            for team in ("instinct", "mystic", "valor"):
+                if reaction.emoji == team_emoji[team]:
+                    await self.verify_helper(
+                        reaction.message.guild,
+                        reacting_member,
+                        reaction.message.channel,
+                        member_to_verify,
+                        None,
+                        team,
+                        []
+                    )
 
     async def deny_member(self, member):
         """
