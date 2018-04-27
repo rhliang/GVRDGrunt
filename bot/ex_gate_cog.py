@@ -15,16 +15,16 @@ class EXGateCog():
     an affirmative message is typed in the disclaimer channel, the same thing happens.
     (All messages other than the disclaimer message get removed after 5 seconds.)
     """
+    # ["disclaimer_channel_id", "disclaimer_message_id", "approve_reaction", "ex_role_id", "wait_time"]
     summary_str_template = textwrap.dedent(
         """\
         Disclaimer channel: {}
         Disclaimer message: {}
+        Approve reaction: {} 
         EX role: {}
+        Wait time before deleting messages in disclaimer channel (seconds): {}
         """
     )
-
-    # Emoji used to indicate agreement to the disclaimer.
-    approve = "✅"
 
     def __init__(self, bot, db, logging_cog=None):
         self.bot = bot
@@ -35,14 +35,22 @@ class EXGateCog():
     @has_permissions(administrator=True)
     async def activate_ex_gating(self, ctx, disclaimer_channel: discord.TextChannel,
                                  disclaimer_message: discord.Message,
-                                 ex_role: discord.Role):
+                                 approve_reaction,
+                                 ex_role: discord.Role,
+                                 wait_time: float):
         """
         Activate EX gating by adding this guild to the database.
 
         :param ctx:
+        :param disclaimer_channel:
+        :param disclaimer_message:
+        :param approve_reaction:
+        :param ex_role:
+        :param wait_time:
         :return:
         """
-        self.db.register_guild(ctx.guild, disclaimer_channel, disclaimer_message, ex_role)
+        self.db.configure_ex_gating(ctx.guild, disclaimer_channel, disclaimer_message,
+                                    approve_reaction, ex_role, wait_time)
         await ctx.message.channel.send(
             f'{ctx.author.mention} EX gating for this guild has been configured with {self.bot.user.name}.'
         )
@@ -66,7 +74,9 @@ class EXGateCog():
             self.summary_str_template.format(
                 ex_gate_info["disclaimer_channel_id"],
                 ex_gate_info["disclaimer_message_id"],
-                ex_gate_info["ex_role_id"]
+                ex_gate_info["approve_reaction"],
+                ex_gate_info["ex_role_id"],
+                ex_gate_info["wait_time"]
             )
         )
 
@@ -130,6 +140,9 @@ class EXGateCog():
             return
 
         # Do nothing if the reaction is not the appropriate reaction.
+        if reaction.emoji != ex_gate_info["approve_reaction"]:
+            return
+
         await self.assign_ex_role(reaction.message.guild.get_member(user.id))
 
     async def on_message(self, message):
@@ -144,7 +157,7 @@ class EXGateCog():
             return
 
         # Do nothing if the message is not in the disclaimer channel.
-        if message.channel.id != ex_gate_info["disclaimer_channel"]:
+        if message.channel.id != ex_gate_info["disclaimer_channel_id"]:
             return
 
         # Do nothing if the message is from the bot itself.
@@ -157,7 +170,7 @@ class EXGateCog():
             await self.assign_ex_role(message.author)
             reply = await message.channel.send(f"{message.author.mention} done!")
 
-        await asyncio.sleep(5.0)
+        await asyncio.sleep(ex_gate_info["wait_time"])
         await message.delete()
         if reply is not None:
             await reply.delete()

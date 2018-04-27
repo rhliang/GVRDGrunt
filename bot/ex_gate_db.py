@@ -22,7 +22,7 @@ class EXGateDB(object):
         with self.conn:
             guild_info_cursor = self.conn.execute(
                 """
-                select disclaimer_channel_id, disclaimer_message_id, ex_role_id
+                select disclaimer_channel_id, disclaimer_message_id, approve_reaction, ex_role_id, wait_time
                 from ex_gate 
                 where guild_id = ?;
                 """,
@@ -35,30 +35,34 @@ class EXGateDB(object):
 
         return dict(
             zip(
-                ["disclaimer_channel_id", "disclaimer_message_id", "ex_role_id"],
+                ["disclaimer_channel_id", "disclaimer_message_id", "approve_reaction", "ex_role_id", "wait_time"],
                 guild_info_tuple
             )
         )
 
-    def register_guild(self, guild, disclaimer_channel: discord.TextChannel,
-                       disclaimer_message: discord.Message, ex_role: discord.Role):
+    def configure_ex_gating(self, guild, disclaimer_channel: discord.TextChannel,
+                            disclaimer_message: discord.Message, approve_reaction, ex_role: discord.Role,
+                            wait_time: float):
         """
         Configure the guild's EX gating.
 
         :param guild:
         :param disclaimer_channel:
         :param disclaimer_message:
+        :param approve_reaction:
         :param ex_role:
+        :param wait_time:
         :raises:
         :return:
         """
         with self.conn:
             self.conn.execute(
                 """
-                insert into ex_gate (guild_id, disclaimer_channel_id, disclaimer_message_id, ex_role_id)
-                values (?, ?, ?, ?);
+                insert into ex_gate 
+                (guild_id, disclaimer_channel_id, disclaimer_message_id, approve_reaction, ex_role_id, wait_time)
+                values (?, ?, ?, ?, ?, ?);
                 """,
-                (guild.id, disclaimer_channel.id, disclaimer_message.id, ex_role.id)
+                (guild.id, disclaimer_channel.id, disclaimer_message.id, approve_reaction, ex_role.id, wait_time)
             )
 
     def remove_ex_gate_data(self, guild):
