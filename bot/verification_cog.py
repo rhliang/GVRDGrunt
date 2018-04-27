@@ -1,6 +1,6 @@
 import textwrap
 import discord
-from discord.ext.commands import command, has_permissions, BadArgument, RoleConverter
+from discord.ext.commands import command, has_permissions, BadArgument
 
 from bot.convert_using_guild import role_converter_from_name
 
@@ -530,10 +530,10 @@ class VerificationCog():
         :param message:
         :return:
         """
-        guild_screenshot_raw_info = self.db.get_screenshot_handling_info(message.guild)
-        if message.channel.id != guild_screenshot_raw_info["screenshot_channel_id"]:
+        guild_info = self.db.get_verification_info(message.guild)
+        if message.channel != guild_info["screenshot_channel"]:
             return False
-        if guild_screenshot_raw_info["welcome_role_id"] not in [x.id for x in message.author.roles]:
+        if guild_info["welcome_role"] not in message.author.roles:
             return False
         if len(message.attachments) == 0:
             return False
@@ -577,7 +577,7 @@ class VerificationCog():
         :return:
         """
         # Do nothing if the guild isn't fully configured yet.
-        if self.db.get_screenshot_handling_info(message.guild) is None:
+        if self.db.get_verification_info(message.guild) is None:
             return
 
         if self.is_welcome_member_screenshot(message):
@@ -610,12 +610,12 @@ class VerificationCog():
         :param user:
         :return:
         """
-        screenshot_raw_info = self.db.get_screenshot_handling_info(reaction.message.guild)
+        guild_info = self.db.get_verification_info(reaction.message.guild)
         # Do nothing if the guild isn't fully configured yet.
-        if screenshot_raw_info is None:
+        if guild_info is None:
             return
 
-        if reaction.message.channel.id != screenshot_raw_info["screenshot_channel_id"]:
+        if reaction.message.channel != guild_info["screenshot_channel"]:
             return
         reacting_member = reaction.message.guild.get_member(user.id)
         if reacting_member == reaction.message.guild.get_member(self.bot.user.id):
@@ -629,9 +629,7 @@ class VerificationCog():
         # Convert the stored emoji data into an actual emoji (either string or discord.Emoji object).
         team_emoji = {}
         for team in ("instinct", "mystic", "valor"):
-            team_emoji[team] = screenshot_raw_info[f"{team}_emoji"]
-            if screenshot_raw_info[f"{team}_emoji_type"] == "custom":
-                team_emoji[team] = self.bot.get_emoji(screenshot_raw_info[f"{team}_emoji"])
+            team_emoji[team] = guild_info[f"{team}_emoji"]
 
         if reaction.emoji not in team_emoji.values() and reaction.emoji != self.deny:
             return
@@ -669,6 +667,5 @@ class VerificationCog():
             del self.member_to_screenshot[member]
             del self.screenshot_to_member[screenshot_message]
 
-        guild_screenshot_raw_info = self.db.get_screenshot_handling_info(member.guild)
-        help_channel = member.guild.get_channel(guild_screenshot_raw_info["help_channel_id"])
-        await help_channel.send(guild_screenshot_raw_info["denied_message"].format(member.mention))
+        guild_info = self.db.get_verification_info(member.guild)
+        await guild_info["help_channel"].send(guild_info["denied_message"].format(member.mention))

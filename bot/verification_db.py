@@ -1,6 +1,5 @@
 import sqlite3
 import discord
-from discord.ext.commands import RoleConverter, EmojiConverter
 
 from bot.convert_using_guild import role_converter, emoji_converter
 
@@ -40,36 +39,6 @@ class GuildInfoDB(object):
     def __init__(self, path_to_db):
         self.path_to_db = path_to_db
         self.conn = sqlite3.connect(self.path_to_db)  # database can be initialized with verification_initialization.sql
-
-    def get_screenshot_handling_info(self, guild):
-        """
-        Return some raw guild information required for handling screenshots.
-
-        Because we don't have a context object, we can't convert channel IDs to channels
-        or role IDs to roles.
-        :param guild:
-        :return:
-        """
-        with self.conn:
-            guild_info_cursor = self.conn.execute(
-                f"""\
-                select {", ".join(self.screenshot_fields_needed)}
-                from guild_info 
-                where guild_id = ?;
-                """,
-                (guild.id,)
-            )
-            guild_info_tuple = guild_info_cursor.fetchone()
-
-        if guild_info_tuple is None:
-            return None
-
-        return dict(
-            zip(
-                self.screenshot_fields_needed,
-                guild_info_tuple
-            )
-        )
 
     def get_verification_info(self, guild):
         """
@@ -133,7 +102,7 @@ class GuildInfoDB(object):
                     # This is a team emoji; extract the team from the field name.
                     team = field_name.split("_")[0]
                     if team_emoji_types[team] == "custom":
-                        converted_result = role_converter(guild, guild_info_tuple[i])
+                        converted_result = emoji_converter(guild, guild_info_tuple[i])
             converted_results.append(converted_result)
 
         final_results = dict(
