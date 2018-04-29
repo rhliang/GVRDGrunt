@@ -4,7 +4,7 @@ import discord
 from bot.convert_using_guild import role_converter, emoji_converter
 
 
-class GuildInfoDB(object):
+class VerificationDB(object):
     """
     A class representing the SQLite database we use to store our information.
     """

@@ -6,7 +6,9 @@ import json
 from discord.ext import commands
 
 from bot.verification_cog import VerificationCog
-from bot.verification_db import GuildInfoDB
+from bot.verification_db import VerificationDB
+from bot.guild_logging_cog import GuildLoggingCog
+from bot.guild_logging_db import GuildLoggingDB
 
 __author__ = "Richard Liang"
 
@@ -25,8 +27,11 @@ def main():
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
         description="A grunt worker for the GVRD servers' needs"
     )
-    db = GuildInfoDB(settings["sqlite_db"])
-    gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, db))
+    verification_db = VerificationDB(settings["sqlite_db"])
+    logging_db = GuildLoggingDB(settings["sqlite_db"])
+
+    gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))
+    gvrd_grunt.add_cog(GuildLoggingCog(gvrd_grunt, logging_db))
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):
