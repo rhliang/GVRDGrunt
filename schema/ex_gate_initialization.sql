@@ -12,4 +12,4 @@ create table ex_gate(
 create table ex_gate_accepted_message(
     guild_id,
     accepted_message
-)
+);
