@@ -48,28 +48,28 @@ class GuildInfoDB(object):
         :return:
         """
         with self.conn:
-            guild_info_cursor = self.conn.execute(
+            verification_info_cursor = self.conn.execute(
                 f"""\
                 select {", ".join(self.all_fields)}
-                from guild_info 
+                from verification_info 
                 where guild_id = ?;
                 """,
                 (guild.id,)
             )
-            guild_info_tuple = guild_info_cursor.fetchone()
-        if guild_info_tuple is None:
+            verification_info_tuple = verification_info_cursor.fetchone()
+        if verification_info_tuple is None:
             return None
 
         with self.conn:
-            guild_info_cursor = self.conn.execute(
+            verification_info_cursor = self.conn.execute(
                 f"""\
                 select instinct_emoji_type, mystic_emoji_type, valor_emoji_type
-                from guild_info 
+                from verification_info 
                 where guild_id = ?;
                 """,
                 (guild.id,)
             )
-            emoji_tuple = guild_info_cursor.fetchone()
+            emoji_tuple = verification_info_cursor.fetchone()
         team_emoji_types = dict(zip(("instinct", "mystic", "valor"), emoji_tuple))
 
         standard_roles = []
@@ -92,17 +92,17 @@ class GuildInfoDB(object):
 
         converted_results = []
         for i, field_name, field_type in enumerate(self.all_fields):
-            converted_result = guild_info_tuple[i]
+            converted_result = verification_info_tuple[i]
             if converted_result is not None:
                 if field_type == "channel":
-                    converted_result = guild.get_channel(guild_info_tuple[i])
+                    converted_result = guild.get_channel(verification_info_tuple[i])
                 elif field_type == "role":
-                    converted_result = role_converter(guild, guild_info_tuple[i])
+                    converted_result = role_converter(guild, verification_info_tuple[i])
                 elif field_type == "emoji":
                     # This is a team emoji; extract the team from the field name.
                     team = field_name.split("_")[0]
                     if team_emoji_types[team] == "custom":
-                        converted_result = emoji_converter(guild, guild_info_tuple[i])
+                        converted_result = emoji_converter(guild, verification_info_tuple[i])
             converted_results.append(converted_result)
 
         final_results = dict(
@@ -124,7 +124,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 """
-                insert into guild_info (guild_id) values(?);
+                insert into verification_info (guild_id) values(?);
                 """,
                 (guild.id,)
             )
@@ -143,7 +143,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 f"""
-                update guild_info
+                update verification_info
                 set {type}_channel = ?
                 where guild_id = ?;
                 """,
@@ -164,7 +164,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 f"""
-                update guild_info
+                update verification_info
                 set denied_message = ?
                 where guild_id = ?;
                 """,
@@ -185,7 +185,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 """
-                update guild_info
+                update verification_info
                 set welcome_role = ?
                 where guild_id = ?;
                 """,
@@ -218,7 +218,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 f"""
-                update guild_info
+                update verification_info
                 set {team.lower()}_role = ?
                 where guild_id = ?;
                 """,
@@ -246,7 +246,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 f"""
-                update guild_info
+                update verification_info
                 set {team.lower()}_emoji = ?,
                 {team.lower()}_emoji_type = ?
                 where guild_id = ?;
@@ -270,7 +270,7 @@ class GuildInfoDB(object):
         with self.conn:
             self.conn.execute(
                 """
-                update guild_info
+                update verification_info
                 set welcome_message = ?,
                 welcome_channel = ?
                 where guild_id = ?;

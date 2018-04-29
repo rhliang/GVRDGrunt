@@ -1,6 +1,6 @@
  -- This SQL script initializes the guild info database.
 
-create table guild_info(
+create table verification_info(
     guild_id primary key,
     screenshot_channel,
     help_channel,
