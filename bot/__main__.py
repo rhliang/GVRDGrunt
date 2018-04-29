@@ -33,9 +33,10 @@ def main():
     logging_db = GuildLoggingDB(settings["sqlite_db"])
     ex_db = EXGateDB(settings["sqlite_db"])
 
+    logging_cog = GuildLoggingCog(gvrd_grunt, logging_db)
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))
-    gvrd_grunt.add_cog(GuildLoggingCog(gvrd_grunt, logging_db))
-    gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db))
+    gvrd_grunt.add_cog(logging_cog)
+    gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db, logging_cog=logging_cog))
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):

@@ -170,7 +170,7 @@ class EXGateCog():
         )
 
         if self.logging_cog is not None:
-            self.logging_cog.log_to_channel(
+            await self.logging_cog.log_to_channel(
                 member.guild,
                 f"{member} was assigned the {ex_role} role"
             )
