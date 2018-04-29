@@ -8,7 +8,8 @@ class GuildLoggingDB(object):
     """
     def __init__(self, path_to_db):
         self.path_to_db = path_to_db
-        self.conn = sqlite3.connect(self.path_to_db)  # database can be initialized with verification_initialization.sql
+        # The database can be initialized with guild_logging_initialization.sql.
+        self.conn = sqlite3.connect(self.path_to_db)
 
     def get_logging_info(self, guild):
         """

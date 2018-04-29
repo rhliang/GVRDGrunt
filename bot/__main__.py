@@ -9,6 +9,8 @@ from bot.verification_cog import VerificationCog
 from bot.verification_db import VerificationDB
 from bot.guild_logging_cog import GuildLoggingCog
 from bot.guild_logging_db import GuildLoggingDB
+from bot.ex_gate_cog import EXGateCog
+from bot.ex_gate_db import EXGateDB
 
 __author__ = "Richard Liang"
 
@@ -29,9 +31,11 @@ def main():
     )
     verification_db = VerificationDB(settings["sqlite_db"])
     logging_db = GuildLoggingDB(settings["sqlite_db"])
+    ex_db = EXGateDB(settings["sqlite_db"])
 
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))
     gvrd_grunt.add_cog(GuildLoggingCog(gvrd_grunt, logging_db))
+    gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db))
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):
