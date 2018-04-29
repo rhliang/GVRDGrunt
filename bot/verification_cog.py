@@ -1,6 +1,6 @@
 import textwrap
 import discord
-from discord.ext.commands import command, has_permissions, BadArgument
+from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
 
 from bot.convert_using_guild import role_converter_from_name
 
@@ -121,7 +121,13 @@ class VerificationCog():
         """
         self.guild_registered_validator(ctx.guild)
 
-        self.db.set_team_emoji(ctx.guild, team, emoji)
+        emoji_converter = EmojiConverter()
+        try:
+            actual_emoji = await emoji_converter.convert(ctx, emoji)
+        except BadArgument:
+            actual_emoji = emoji
+
+        self.db.set_team_emoji(ctx.guild, team, actual_emoji)
         await ctx.message.channel.send(
             f'{ctx.author.mention} Guild information has been updated: {team.lower()} emoji is {emoji}.'
         )
@@ -393,10 +399,13 @@ class VerificationCog():
             valor_strings = ["valor", "v", "red", "r"]
             team = team.lower()
             if team in instinct_strings:
+                team = "instinct"
                 team_role = guild_info["instinct_role"]
             elif team in mystic_strings:
+                team = "mystic"
                 team_role = guild_info["mystic_role"]
             elif team in valor_strings:
+                team = "valor"
                 team_role = guild_info["valor_role"]
             else:
                 raise BadArgument(
@@ -425,9 +434,10 @@ class VerificationCog():
                 for role in other_roles_to_add[1:]:
                     roles_added_str += f"\n - {role}"
 
-            await self.member_approved(member)
+            nick_str = "no nickname" if in_game_name is None else f"nick {in_game_name}"
+            await self.member_approved(member, team)
             await reply_channel.send(
-                f"{verifier.mention} Member {member} has been verified with team {team_role} " 
+                f"{verifier.mention} Member {member} has been verified with {nick_str}, team {team_role}, " 
                 f"and roles:\n{roles_added_str}"
             )
 
@@ -539,7 +549,7 @@ class VerificationCog():
             return False
         return True
 
-    async def welcome_member_screenshot_received(self, screenshot_message, instinct_emoji, mystic_emoji, valor_emoji):
+    async def welcome_member_screenshot_received(self, screenshot_message):
         """
         On receipt of a Welcome member's screenshot, track this message and its reactions.
 
@@ -547,18 +557,21 @@ class VerificationCog():
         If there is a previous message, forget the old one and start tracking this one.
         Add reactions that can be used to mark as accepted or denied.
 
+        PRE: guild is fully configured.
+
         :param screenshot_message:
-        :param instinct_emoji:
-        :param mystic_emoji:
-        :param valor_emoji:
         :return:
         """
+        self.guild_fully_configured_validator(screenshot_message.guild)
+
         # Having reached here, we know that this message is in the appropriate channel,
         # sent by someone with the Welcome role, and contains an attachment (presumably a screenshot).
+        verification_info = self.db.get_verification_info(screenshot_message.guild)
+
         await screenshot_message.clear_reactions()
-        await screenshot_message.add_reaction(instinct_emoji)
-        await screenshot_message.add_reaction(mystic_emoji)
-        await screenshot_message.add_reaction(valor_emoji)
+        await screenshot_message.add_reaction(verification_info["instinct_emoji"])
+        await screenshot_message.add_reaction(verification_info["mystic_emoji"])
+        await screenshot_message.add_reaction(verification_info["valor_emoji"])
         await screenshot_message.add_reaction(self.deny)
 
         original_screenshot = self.member_to_screenshot.get(screenshot_message.author, None)
@@ -577,13 +590,13 @@ class VerificationCog():
         :return:
         """
         # Do nothing if the guild isn't fully configured yet.
-        if self.db.get_verification_info(message.guild) is None:
+        if not self.guild_fully_configured(message.guild):
             return
 
         if self.is_welcome_member_screenshot(message):
             await self.welcome_member_screenshot_received(message)
 
-    async def member_approved(self, member):
+    async def member_approved(self, member, team):
         """
         This member has been approved, so remove them and their screenshot from tracking.
 
@@ -592,6 +605,8 @@ class VerificationCog():
         :param member:
         :return:
         """
+        verification_info = self.db.get_verification_info(member.guild)
+
         screenshot_message = self.member_to_screenshot.get(member, None)
         if screenshot_message is None:
             return
@@ -600,6 +615,7 @@ class VerificationCog():
 
         await screenshot_message.clear_reactions()
         await screenshot_message.add_reaction(self.approved)
+        await screenshot_message.add_reaction(verification_info[f"{team}_emoji"])
         del self.member_to_screenshot[member]
 
     async def on_reaction_add(self, reaction, user):

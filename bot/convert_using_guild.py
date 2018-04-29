@@ -36,6 +36,6 @@ def emoji_converter(guild, emoji_id):
     :param emoji_id:
     :return:
     """
-    for emoji in guild.emoji:
+    for emoji in guild.emojis:
         if emoji.id == emoji_id:
             return emoji

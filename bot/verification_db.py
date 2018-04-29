@@ -48,9 +48,15 @@ class GuildInfoDB(object):
         :return:
         """
         with self.conn:
+            query = f"""\
+            select {", ".join([x[0] for x in self.all_fields])}
+            from verification_info 
+            where guild_id = ?;
+            """,
+            (guild.id,)
             verification_info_cursor = self.conn.execute(
                 f"""\
-                select {", ".join(self.all_fields)}
+                select {", ".join([x[0] for x in self.all_fields])}
                 from verification_info 
                 where guild_id = ?;
                 """,
@@ -91,14 +97,14 @@ class GuildInfoDB(object):
                     standard_roles.append(role)
 
         converted_results = []
-        for i, field_name, field_type in enumerate(self.all_fields):
+        for i, (field_name, field_type) in enumerate(self.all_fields):
             converted_result = verification_info_tuple[i]
             if converted_result is not None:
                 if field_type == "channel":
                     converted_result = guild.get_channel(verification_info_tuple[i])
                 elif field_type == "role":
                     converted_result = role_converter(guild, verification_info_tuple[i])
-                elif field_type == "emoji":
+                elif field_type == "emoji_or_string":
                     # This is a team emoji; extract the team from the field name.
                     team = field_name.split("_")[0]
                     if team_emoji_types[team] == "custom":
@@ -113,6 +119,7 @@ class GuildInfoDB(object):
         )
         final_results["standard_roles"] = standard_roles
         final_results["mandatory_roles"] = mandatory_roles
+        return final_results
 
     def register_guild(self, guild):
         """
