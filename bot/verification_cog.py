@@ -422,11 +422,22 @@ class VerificationCog():
 
             other_roles_to_add = list(set(guild_info["mandatory_roles"] + roles_to_add))
 
-            await member.edit(
-                roles=[team_role] + other_roles_to_add,
-                nick=in_game_name,
-                reason=f"Verified by {verifier.mention} using {self.bot.user.name}"
-            )
+            current_nick = member.nick
+            nick_str = "no nickname"
+            if in_game_name is not None:
+                await member.edit(
+                    roles=[team_role] + other_roles_to_add,
+                    nick=in_game_name,
+                    reason=f"Verified by {verifier.mention} using {self.bot.user.name}"
+                )
+                nick_str = f"nick {in_game_name}"
+            else:
+                await member.edit(
+                    roles=[team_role] + other_roles_to_add,
+                    reason=f"Verified by {verifier.mention} using {self.bot.user.name}"
+                )
+                if current_nick is not None:
+                    nick_str = f"nick {current_nick} (self-assigned)"
 
             roles_added_str = "(none)"
             if len(other_roles_to_add) > 0:
@@ -434,7 +445,6 @@ class VerificationCog():
                 for role in other_roles_to_add[1:]:
                     roles_added_str += f"\n - {role}"
 
-            nick_str = "no nickname" if in_game_name is None else f"nick {in_game_name}"
             await self.member_approved(member, team)
             await reply_channel.send(
                 f"{verifier.mention} Member {member} has been verified with {nick_str}, team {team_role}, " 
