@@ -552,6 +552,10 @@ class VerificationCog():
                 nick=None,
                 reason=f"Reset by {ctx.message.author.name} using {self.get_bot_member(ctx.guild).name}"
             )
+            await ctx.message.channel.send(
+                f"{ctx.message.author.mention} Member {member} has been reset to the Welcome role."
+            )
+
 
     def is_welcome_member_screenshot(self, message):
         """
