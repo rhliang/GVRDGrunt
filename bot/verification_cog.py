@@ -37,6 +37,15 @@ class VerificationCog():
         self.member_to_screenshot = {}  # maps member -|-> the member's most recent unverified screenshot
         self.screenshot_to_member = {}  # the converse mapping
 
+    def get_bot_member(self, guild):
+        """
+        Helper that gets the bot's guild Member.
+
+        :param guild:
+        :return:
+        """
+        return guild.get_member(self.bot.user.id)
+
     @command()
     @has_permissions(administrator=True)
     async def register_guild(self, ctx):
@@ -47,7 +56,8 @@ class VerificationCog():
         """
         self.db.register_guild(ctx.guild)
         await ctx.message.channel.send(
-            f'{ctx.author.mention} This guild has been registered with {self.bot.user.name} and may now be configured.'
+            f'{ctx.author.mention} This guild has been registered with {self.get_bot_member(ctx.guild).name} '
+            f'and may now be configured.'
         )
 
     def is_guild_registered(self, guild):
@@ -85,7 +95,7 @@ class VerificationCog():
         channel_perms = channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
         if not channel_perms.send_messages:
             await ctx.message.channel.send(
-                f'{ctx.author.mention} {self.bot.user.name} cannot write to channel {channel}.'
+                f'{ctx.author.mention} {self.get_bot_member(ctx.guild).name} cannot write to channel {channel}.'
             )
             return
 
@@ -171,7 +181,7 @@ class VerificationCog():
         channel_perms = welcome_channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
         if not channel_perms.send_messages:
             await ctx.message.channel.send(
-                f'{ctx.author.mention} {self.bot.user.name} cannot write to channel {welcome_channel}.'
+                f'{ctx.author.mention} {self.get_bot_member(ctx.guild).name} cannot write to channel {welcome_channel}.'
             )
             return
 
@@ -428,13 +438,13 @@ class VerificationCog():
                 await member.edit(
                     roles=[team_role] + other_roles_to_add,
                     nick=in_game_name,
-                    reason=f"Verified by {verifier.mention} using {self.bot.user.name}"
+                    reason=f"Verified by {verifier.name} using {self.get_bot_member(guild).name}"
                 )
                 nick_str = f"nick {in_game_name}"
             else:
                 await member.edit(
                     roles=[team_role] + other_roles_to_add,
-                    reason=f"Verified by {verifier.mention} using {self.bot.user.name}"
+                    reason=f"Verified by {verifier.name} using {self.get_bot_member(guild).name}"
                 )
                 if current_nick is not None:
                     nick_str = f"nick {current_nick} (self-assigned)"
@@ -540,7 +550,7 @@ class VerificationCog():
             await member.edit(
                 roles=[guild_info["welcome_role"]],
                 nick=None,
-                reason=f"Reset by {ctx.message.author.mention} using {self.bot.user.name}"
+                reason=f"Reset by {ctx.message.author.name} using {self.get_bot_member(ctx.guild).name}"
             )
 
     def is_welcome_member_screenshot(self, message):

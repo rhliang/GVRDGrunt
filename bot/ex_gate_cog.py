@@ -36,6 +36,15 @@ class EXGateCog():
         self.db = db  # a EXGateDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
 
+    def get_bot_member(self, guild):
+        """
+        Helper that gets the bot's guild Member.
+
+        :param guild:
+        :return:
+        """
+        return guild.get_member(self.bot.user.id)
+
     @command()
     @has_permissions(administrator=True)
     async def activate_ex_gating(self,
@@ -62,12 +71,13 @@ class EXGateCog():
         channel_perms = disclaimer_channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
         if not channel_perms.send_messages:
             await ctx.message.channel.send(
-                f'{ctx.author.mention} {self.bot.user.name} cannot write to channel {disclaimer_channel}.'
+                f'{ctx.author.mention} {self.get_bot_member(ctx.guild).name} '
+                f'cannot write to channel {disclaimer_channel}.'
             )
             return
         elif not channel_perms.manage_messages:
             await ctx.message.channel.send(
-                f'{ctx.author.mention} {self.bot.user.name} needs Manage Messages '
+                f'{ctx.author.mention} {self.get_bot_member(ctx.guild).name} needs Manage Messages '
                 f'permissions on channel {disclaimer_channel}.'
             )
             return
@@ -81,7 +91,8 @@ class EXGateCog():
         self.db.configure_ex_gating(ctx.guild, disclaimer_channel, disclaimer_message_id,
                                     actual_emoji, ex_role, wait_time, approval_message_template)
         await ctx.message.channel.send(
-            f'{ctx.author.mention} EX gating for this guild has been configured with {self.bot.user.name}.'
+            f'{ctx.author.mention} EX gating for this guild has been '
+            f'configured with {self.get_bot_member(ctx.guild).name}.'
         )
 
     @command(help="Display the guild EX gating configuration.")
@@ -166,7 +177,7 @@ class EXGateCog():
         ex_role = ex_gate_info["ex_role"]
         await member.edit(
             roles=list(set([ex_role] + member.roles)),
-            reason=f"Granted the {ex_role} role by {self.bot.user.name}"
+            reason=f"Granted the {ex_role} role by {self.get_bot_member(member.guild).name}"
         )
 
         if self.logging_cog is not None:
