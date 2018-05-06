@@ -14,6 +14,7 @@ class RoleReactionSubscriptionCog():
     """
     summary_str_template = textwrap.dedent(
         """\
+        Channel: {}
         Subscription message: {}
         Approve emoji: {} 
         Role: {}
@@ -34,22 +35,27 @@ class RoleReactionSubscriptionCog():
         """
         return guild.get_member(self.bot.user.id)
 
-    @command()
+    @command(
+        help="Configure role reaction subscription for the specified role.",
+        aliases=["start_react_sub"]
+    )
     @has_permissions(administrator=True)
     async def activate_role_reaction_subscription(
             self,
             ctx,
+            role: discord.Role,
+            channel: discord.TextChannel,
             subscription_message_id,
-            toggle_emoji,
-            role: discord.Role
+            toggle_emoji
     ):
         """
         Activate reaction-based role subscription.
 
         :param ctx:
+        :param role:
+        :param channel:
         :param subscription_message_id:
         :param toggle_emoji:
-        :param role:
         :return:
         """
         emoji_converter = EmojiConverter()
@@ -58,7 +64,16 @@ class RoleReactionSubscriptionCog():
         except BadArgument:
             actual_emoji = toggle_emoji
 
-        self.db.configure_role_subscription(ctx.guild, subscription_message_id, actual_emoji, role)
+        self.db.configure_role_reaction_subscription(ctx.guild, channel, subscription_message_id, actual_emoji, role)
+        message = await channel.get_message(subscription_message_id)
+        try:
+            await message.add_reaction(actual_emoji)
+        except discord.Forbidden:
+            await ctx.message.channel.send(
+                f"{ctx.author.mention} Bot {ctx.guild.get_member(self.bot.user.id)} does not"
+                f"have the appropriate permissions to add a reaction."
+            )
+
         await ctx.message.channel.send(
             f"{ctx.author.mention} Reaction role subscription for this guild's {role} role has been "
             f"configured with {self.get_bot_member(ctx.guild).name}."
@@ -82,16 +97,20 @@ class RoleReactionSubscriptionCog():
 
         await ctx.message.channel.send(
             self.summary_str_template.format(
+                subscription_info["channel"],
                 subscription_info["subscription_message_id"],
                 subscription_info["toggle_emoji"],
                 subscription_info["role"]
             )
         )
 
-    @command(help="Display all of the role reaction subscription configuration for this guild.")
+    @command(
+        help="Display all of the role reaction subscription configuration for this guild.",
+        aliases=["show_react_sub"]
+    )
     @has_permissions(manage_roles=True)
     @has_permissions(manage_nicknames=True)
-    async def show_all_role_reaction_subscription(self, ctx):
+    async def show_all_role_reaction_subscriptions(self, ctx):
         """
         Display *all* role reaction subscription configuration for this guild.
 
@@ -108,14 +127,18 @@ class RoleReactionSubscriptionCog():
         for subscription_info in subscription_info_list:
             summaries.append(
                 self.summary_str_template.format(
+                    subscription_info["channel"],
                     subscription_info["subscription_message_id"],
                     subscription_info["toggle_emoji"],
                     subscription_info["role"]
                 )
             )
-        await ctx.message.channel.send("\n--------\n".join(summaries))
+        await ctx.message.channel.send("--------\n".join(summaries))
 
-    @command(help="Clear the role reaction subscription configuration for the specified role.")
+    @command(
+        help="Clear the role reaction subscription configuration for the specified role.",
+        aliases=["stop_react_sub"]
+    )
     @has_permissions(administrator=True)
     async def disable_role_reaction_subscription(self, ctx, role: discord.Role):
         """
@@ -125,7 +148,17 @@ class RoleReactionSubscriptionCog():
         :param role:
         :return:
         """
+        subscription_info = self.db.get_subscription_info(ctx.guild, role)
+        if subscription_info is None:
+            await ctx.message.channel.send(f'{ctx.author.mention} Reaction subscription for {role} is not configured.')
+            return
+
         self.db.remove_subscription_data(ctx.guild, role)
+        message = await subscription_info["channel"].get_message(subscription_info["subscription_message_id"])
+        try:
+            await message.remove_reaction(subscription_info["toggle_emoji"], ctx.guild.get_member(self.bot.user.id))
+        except discord.NotFound:
+            pass
         await ctx.message.channel.send(
             f"{ctx.author.mention} Reaction role assignment functionality "
             f"for the {role} role is disabled for this guild."
@@ -178,7 +211,7 @@ class RoleReactionSubscriptionCog():
         :param role:
         :return:
         """
-        if role in member.role:
+        if role in member.roles:
             await self.remove_role(member, role)
         else:
             await self.assign_role(member, role)
@@ -191,8 +224,10 @@ class RoleReactionSubscriptionCog():
         :param payload:
         :return:
         """
+        if payload.user_id == self.bot.user.id:
+            pass
         guild = self.bot.get_guild(payload.guild_id)
-        subscription_info = self.db.get_subscription_info_from_message(guild, payload.message_id)
+        subscription_info = self.db.get_subscription_info_by_message_id(guild, payload.message_id)
         # Do nothing if the guild doesn't have subscription for this role configured.
         if subscription_info is None:
             return

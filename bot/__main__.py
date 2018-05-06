@@ -11,6 +11,8 @@ from bot.guild_logging_cog import GuildLoggingCog
 from bot.guild_logging_db import GuildLoggingDB
 from bot.ex_gate_cog import EXGateCog
 from bot.ex_gate_db import EXGateDB
+from bot.role_reaction_subscription_cog import RoleReactionSubscriptionCog
+from bot.role_reaction_subscription_db import RoleReactionSubscriptionDB
 
 __author__ = "Richard Liang"
 
@@ -32,11 +34,13 @@ def main():
     verification_db = VerificationDB(settings["sqlite_db"])
     logging_db = GuildLoggingDB(settings["sqlite_db"])
     ex_db = EXGateDB(settings["sqlite_db"])
+    role_reaction_subscription_db = RoleReactionSubscriptionDB(settings["sqlite_db"])
 
     logging_cog = GuildLoggingCog(gvrd_grunt, logging_db)
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))
     gvrd_grunt.add_cog(logging_cog)
     gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db, logging_cog=logging_cog))
+    gvrd_grunt.add_cog(RoleReactionSubscriptionCog(gvrd_grunt, role_reaction_subscription_db, logging_cog=logging_cog))
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):

@@ -6,6 +6,7 @@ from bot.convert_using_guild import emoji_converter, role_converter
 
 # create table role_reaction_subscription(
 #     guild_id,
+#     channel_id,
 #     subscription_message_id primary key,
 #     toggle_emoji,
 #     toggle_emoji_type,
@@ -26,7 +27,7 @@ class RoleReactionSubscriptionDB(object):
 
         :param guild:
         :param subscription_info_tuple: a tuple containing
-            (subscription message ID, toggle emoji -- either str or ID, role ID),
+            (channel ID that message is in, subscription message ID, toggle emoji -- either str or ID, role ID),
         :return:
         """
         if subscription_info_tuple is None:
@@ -35,6 +36,7 @@ class RoleReactionSubscriptionDB(object):
         result = dict(
             zip(
                 [
+                    "channel",
                     "subscription_message_id",
                     "toggle_emoji",
                     "role",
@@ -49,7 +51,8 @@ class RoleReactionSubscriptionDB(object):
                 """
                 select toggle_emoji_type
                 from role_reaction_subscription 
-                where guild_id = ?, subscription_message_id = ?;
+                where guild_id = ?
+                and subscription_message_id = ?;
                 """,
                 (guild.id, result["subscription_message_id"])
             )
@@ -58,6 +61,7 @@ class RoleReactionSubscriptionDB(object):
             result["toggle_emoji"] = emoji_converter(guild, result["toggle_emoji"])
         # Other conversions.
         result["role"] = role_converter(guild, result["role"])
+        result["channel"] = guild.get_channel(result["channel"])
         return result
 
     def get_subscription_info(self, guild: discord.Guild, role: discord.Role):
@@ -72,11 +76,13 @@ class RoleReactionSubscriptionDB(object):
             guild_info_cursor = self.conn.execute(
                 """
                 select 
+                    channel_id,
                     subscription_message_id, 
                     toggle_emoji, 
                     role_id
                 from role_reaction_subscription 
-                where guild_id = ?, role_id = ?;
+                where guild_id = ?
+                and role_id = ?;
                 """,
                 (guild.id, role.id)
             )
@@ -95,13 +101,15 @@ class RoleReactionSubscriptionDB(object):
             guild_info_cursor = self.conn.execute(
                 """
                 select 
+                    channel_id,
                     subscription_message_id, 
                     toggle_emoji, 
                     role_id
                 from role_reaction_subscription 
-                where guild_id = ?, subscription_message_id = ?;
+                where guild_id = ?
+                and subscription_message_id = ?;
                 """,
-                (guild.id, message_id)
+                (guild.id, str(message_id))
             )
             guild_info_tuple = guild_info_cursor.fetchone()
         return self.convert_subscription_info_to_dict(guild, guild_info_tuple)
@@ -118,6 +126,7 @@ class RoleReactionSubscriptionDB(object):
             guild_info_cursor = self.conn.execute(
                 """
                 select 
+                    channel_id,
                     subscription_message_id, 
                     toggle_emoji, 
                     role_id
@@ -130,12 +139,19 @@ class RoleReactionSubscriptionDB(object):
                 subscription_info_list.append(self.convert_subscription_info_to_dict(guild, subscription_tuple))
         return subscription_info_list
 
-    def configure_role_reaction_subscription(self, guild: discord.Guild, subscription_message_id, toggle_emoji,
-                                    role: discord.Role):
+    def configure_role_reaction_subscription(
+            self,
+            guild: discord.Guild,
+            channel: discord.TextChannel,
+            subscription_message_id,
+            toggle_emoji,
+            role: discord.Role
+    ):
         """
         Configure the guild's EX gating.
 
         :param guild:
+        :param channel:
         :param subscription_message_id:
         :param toggle_emoji:
         :param role:
@@ -154,15 +170,17 @@ class RoleReactionSubscriptionDB(object):
                 insert into role_reaction_subscription 
                 (
                     guild_id, 
+                    channel_id,
                     subscription_message_id, 
                     toggle_emoji, 
                     toggle_emoji_type, 
                     role_id
                 )
-                values (?, ?, ?, ?, ?);
+                values (?, ?, ?, ?, ?, ?);
                 """,
                 (
                     guild.id,
+                    channel.id,
                     subscription_message_id,
                     emoji_stored_value,
                     emoji_type,
@@ -180,6 +198,6 @@ class RoleReactionSubscriptionDB(object):
         """
         with self.conn:
             self.conn.execute(
-                "delete from role_reaction_subscription where guild_id = ?, role_id = ?;",
+                "delete from role_reaction_subscription where guild_id = ? and role_id = ?;",
                 (guild.id, role.id)
             )
