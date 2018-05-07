@@ -16,11 +16,19 @@ Installation
     * `--debug` for debug-level logging
     * `--config [JSON config file]` to use a different config file than `./gvrd_grunt_config.json`
 
+In the configuration file, you must set the following:
+
+* `token`: the bot's Discord token
+* `sqlite_db`: absolute path to the SQLite database file
+* `command_prefix`: the bot will only recognize messages that start with this prefix as commands
+* `log_file`: absolute path to the log file
+
 The preferred deployment method for GVRDGrunt is via Docker.  The provided Dockerfile is configured to
-look for the JSON configuration file at `/config/gvrd_grunt_config.json`, so make sure that file is accessible
-within the Docker container at that path.  In the config file, you will also have to set the locations of the 
-database and log file to paths inside the container; you will probably want to use either a bind mount or a 
-volume for that, so make sure you mount them at the correct places in your container.
+look for the JSON configuration file inside the container at `/config/gvrd_grunt_config.json`, so make sure 
+that file is accessible within the Docker container at that path.  In the config file, the paths
+you set for the SQLite database and the log file will be *as they appear in the container*; you will probably 
+want to use either a bind mount or a volume for those, so make sure you mount them at the correct places in 
+your container.
 
 GVRDGrunt provides the following services.
 
