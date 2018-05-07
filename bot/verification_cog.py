@@ -83,7 +83,7 @@ class VerificationCog():
     @has_permissions(administrator=True)
     async def configure_channel(self, ctx, channel_type, channel: discord.TextChannel):
         """
-        Helper that performs guild channel configuration for the screenshot, help, and log channels.
+        Helper that performs guild channel configuration for the screenshot and help channels.
         :param ctx:
         :param channel_type:
         :param channel:

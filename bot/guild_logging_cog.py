@@ -45,6 +45,7 @@ class GuildLoggingCog():
         Configure this guild's log channel.
 
         :param ctx:
+        :param log_channel:
         :return:
         """
         self.db.configure_guild_logging(ctx.guild, log_channel)
