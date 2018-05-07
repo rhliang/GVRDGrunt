@@ -20,7 +20,7 @@ In the configuration file, you must set the following:
 
 * `token`: the bot's Discord token
 * `sqlite_db`: absolute path to the SQLite database file
-* `command_prefix`: the bot will only recognize messages that start with this prefix as commands
+* `command_prefix`: the bot will only recognize messages that start with this prefix as commands (for GVRD we use ".")
 * `log_file`: absolute path to the log file
 
 The preferred deployment method for GVRDGrunt is via Docker.  The provided Dockerfile is configured to
@@ -46,11 +46,19 @@ to verify the user; if this happens, the user gets the `Welcome` role removed, a
 standard verification roles the guild defines are also applied to the user.  The user is then pinged with a 
 welcome message in `#chitchat`.
 * The moderator may also use the `verify` command (or simply `v`) to accomplish the same task: 
-```verify [user to verify] [team]```
-If other roles are to be assigned on verification, they can be listed after those parameters:
-```verify [user] [team] [role 1] [role 2] ... [role N]```
+    ```
+    verify [user to verify] [team]
+    ```
+    
+    If other roles are to be assigned on verification, they can be listed after those parameters:
+    ```
+    verify [user] [team] [role 1] [role 2] ... [role N]
+    ```
 * If a nick change is required, the moderator may use the `nickverify` command (or `n`, or `nv`):
-```nickverify [user to verify] [PoGo IGN] [team]```
+    ```
+    nickverify [user to verify] [PoGo IGN] [team]
+    ```
+
 and optional roles can be specified in the same way.
 * If the screenshot can't be verified for any reason, the moderator can click on the ❌ reaction.
 The user will be pinged in the `#help` channel with a message explaining what happened.
