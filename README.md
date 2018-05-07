@@ -30,7 +30,7 @@ you set for the SQLite database and the log file will be *as they appear in the 
 want to use either a bind mount or a volume for those, so make sure you mount them at the correct places in 
 your container.
 
-GVRDGrunt provides the following services.
+GVRDGrunt provides the following services to guilds that it's deployed on.
 
 Verification
 ------------
