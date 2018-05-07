@@ -18,8 +18,9 @@ Installation
 
 The preferred deployment method for GVRDGrunt is via Docker.  The provided Dockerfile is configured to
 look for the JSON configuration file at `/config/gvrd_grunt_config.json`, so make sure that file is accessible
-within the Docker container at that path.  You will also have to set the location of the database and log file
-to a path inside the container; you will probably want to use either a bind mount or a volume for that.
+within the Docker container at that path.  In the config file, you will also have to set the locations of the 
+database and log file to paths inside the container; you will probably want to use either a bind mount or a 
+volume for that, so make sure you mount them at the correct places in your container.
 
 GVRDGrunt provides the following services.
 
