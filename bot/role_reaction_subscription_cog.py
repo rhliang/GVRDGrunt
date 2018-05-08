@@ -225,7 +225,7 @@ class RoleReactionSubscriptionCog():
         :return:
         """
         if payload.user_id == self.bot.user.id:
-            pass
+            return
         guild = self.bot.get_guild(payload.guild_id)
         subscription_info = self.db.get_subscription_info_by_message_id(guild, payload.message_id)
         # Do nothing if the guild doesn't have subscription for this role configured.
