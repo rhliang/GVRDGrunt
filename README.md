@@ -80,6 +80,8 @@ The things that need to be set on deployment, and their placeholders in the abov
 * the welcome channel (`#chitchat`)
 * the welcome message
 * the denied message
+* the roles your guild uses for the teams
+* emoji that will be attached to the screenshots -- one for each team
 
 ### Configuring verification
 
