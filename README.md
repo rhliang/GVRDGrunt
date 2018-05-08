@@ -30,6 +30,15 @@ you set for the SQLite database and the log file will be *as they appear in the 
 want to use either a bind mount or a volume for those, so make sure you mount them at the correct places in 
 your container.
 
+If you're deploying the main GVRD bot
+-------------------------------------
+
+This isn't a public bot -- it's only meant to be for the GVRD guilds -- so you'll need me to be
+in your guild, and for me to have Manage Server perms.  Contact me -- @Solderfumes#9910 on Discord.
+
+Also note that if you're deploying the main GVRD bot, the command prefix is `.`, so any of the commands
+described below must be prefaced with that.
+
 GVRDGrunt provides the following services to guilds that it's deployed on.
 
 Verification
@@ -76,7 +85,9 @@ The things that need to be set on deployment, and their placeholders in the abov
 
 GVRDGrunt must be configured for the guild before this can happen.  These commands must be run by someone with
 `Administrator` privileges on the guild, except for `showsettings`.  Remember that the bot must have appropriate 
-permissions on the channels it reads from/writes to!
+permissions on the channels it reads from/writes to!  Also, the bot needs `Manage Roles` and `Manage Nickname`,
+and whatever role you create for it has to be higher than your guild's welcome and team roles on the guild
+role hierarchy.
 
 #### Required configuration
 
@@ -102,13 +113,15 @@ These are the emoji that the bot will attach to screenshots for one-click verifi
 The roles the guild uses for Instinct/Mystic/Valor.
 
 ##### `configure_guild_welcome [channel] [welcome message template incl "{}" where the member will be mentioned]`
-Configures the channel that the guild sends the welcome message in, as well as the message that is sent.  This message
+Configures the channel that the guild sends the welcome message in, as well as the message that is sent.  
+Presumably this message is more than one word, so it should go in quotes!  Also, this message
 should contain a single `{}` where the new member will be mentioned.  The bot must have read and write
 privileges on the welcome channel.
 
 ##### `configure_denied_message [denied message template incl "{}" where the member will be mentioned]`
 Configures the message that will be sent to the user when their screenshot is rejected.  Like the welcome message,
-this message should contain a single `{}` where the new member will be mentioned.
+this message should be in quotes if it's more than one word (how could it not be??) and should contain a 
+single `{}` where the new member will be mentioned.
 
 #### Optional configuration
 
@@ -143,6 +156,10 @@ This command requires `Manage Roles` permissions.
 Similar to `verify` except also sets the guild nick.  You may also use `n`, `nv` or `nickv` as a short form.
 
 This command requires `Manage Roles` and `Manage Nicknames` permissions.
+
+##### `reset [member]`
+Clear the member's nick and remove all roles, and re-assign the welcome role.  This requires `Manage Roles`
+and `Manage Nicknames`.
 
 Logging
 -------
