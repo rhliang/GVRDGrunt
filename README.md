@@ -68,7 +68,7 @@ welcome message in `#chitchat`.
     nickverify [user to verify] [PoGo IGN] [team]
     ```
 
-and optional roles can be specified in the same way.
+    and optional roles can be specified in the same way.
 * If the screenshot can't be verified for any reason, the moderator can click on the ❌ reaction.
 The user will be pinged in the `#help` channel with a message explaining what happened.
     
