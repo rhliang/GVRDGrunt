@@ -13,7 +13,7 @@ from bot.ex_gate_cog import EXGateCog
 from bot.ex_gate_db import EXGateDB
 from bot.role_reaction_subscription_cog import RoleReactionSubscriptionCog
 from bot.role_reaction_subscription_db import RoleReactionSubscriptionDB
-from bot.baconpatrol_cog import BaconpaTrollCog
+from bot.baconpatroll_cog import BaconpaTrollCog
 
 __author__ = "Richard Liang"
 
