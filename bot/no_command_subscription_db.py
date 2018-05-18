@@ -27,12 +27,11 @@ class NoCommandSubscriptionDB(object):
         with self.conn:
             self.conn.execute(
                 """
-                insert into no_command_subscription 
-                (
+                insert into no_command_subscription (
                     guild_id, 
                     subscription_channel_id, 
                     instruction_message,
-                    wait_time,
+                    wait_time
                 )
                 values (?, ?, ?, ?);
                 """,
@@ -47,6 +46,8 @@ class NoCommandSubscriptionDB(object):
     def disable_no_command_subscription(self, guild: discord.Guild):
         """
         Disable no-command subscription for this guild by removing its data from the database.
+
+        Note that you will have to deregister the roles separately.
 
         :param guild:
         :return:
@@ -177,7 +178,7 @@ class NoCommandSubscriptionDB(object):
                 result["roles"][role] = []
 
             sub_cursor = self.conn.execute(
-                "select role_id, channel_id from no_command_role where guild_id = ?;",
+                "select role_id, channel_id from no_command_role_channel where guild_id = ?;",
                 (guild.id,)
             )
             for role_channel_tuple in sub_cursor:

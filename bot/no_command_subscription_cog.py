@@ -1,7 +1,7 @@
 import textwrap
 import asyncio
 import csv
-from io import StringIO
+from io import BytesIO, StringIO
 import discord
 from discord.ext.commands import command, has_permissions, TextChannelConverter
 
@@ -35,7 +35,8 @@ class NoCommandSubscriptionCog():
             ctx,
             subscription_channel: discord.TextChannel,
             instruction_message,
-            wait_time: float):
+            wait_time: float
+    ):
         """
         Activate no-command subscription for this guild.
 
@@ -70,7 +71,7 @@ class NoCommandSubscriptionCog():
 
         await ctx.message.channel.send(
             f'{ctx.author.mention} No-command subscription for this guild has been '
-            f'configured with {self.get_bot_member(ctx.guild).name}.'
+            f'configured with {ctx.guild.get_member(self.bot.user.id).name}.'
         )
 
     @command()
@@ -111,13 +112,14 @@ class NoCommandSubscriptionCog():
             return
 
         csv_attachment = ctx.message.attachments[0]  # raises an exception if it isn't there, that's fine
-        csv_contents = StringIO()
-        await csv_attachment.save(csv_contents)
+        csv_contents_raw = BytesIO()
+        await csv_attachment.save(csv_contents_raw)
+        csv_contents = StringIO(csv_contents_raw.getvalue().decode("utf-8"))
 
         roles_to_register = []
         roles_csv = csv.DictReader(csv_contents)
         for row in roles_csv:
-            role = role_converter_from_name(row["role_name"])
+            role = role_converter_from_name(ctx.guild, row["role_name"])
             if role is not None:
                 roles_to_register.append(role)
 
@@ -130,7 +132,7 @@ class NoCommandSubscriptionCog():
 
         await ctx.message.channel.send(
             f'{ctx.author.mention} No-command subscription for the following roles has been '
-            f'registered with {self.get_bot_member(ctx.guild).name}:\n\n'
+            f'registered with {ctx.guild.get_member(self.bot.user.id).name}:\n\n'
             f'{roles_str}'
         )
 
@@ -146,8 +148,13 @@ class NoCommandSubscriptionCog():
         :param ctx:
         :return:
         """
+        guild_settings = self.db.get_no_command_subscription_settings(ctx.guild)
+        if guild_settings is None:
+            await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
+            return
+
         channel_converter = TextChannelConverter()
-        channel_list = [channel_converter.convert(ctx, raw_channel) for raw_channel in channels]
+        channel_list = [await channel_converter.convert(ctx, raw_channel) for raw_channel in channels]
 
         self.db.register_role(ctx.guild, role, channel_list)
 
@@ -158,7 +165,7 @@ class NoCommandSubscriptionCog():
                 channel_str += f"\n - {channel}"
 
         reply = (f'{ctx.author.mention} No-command subscription for role {role} has been '
-                 f'configured with {self.get_bot_member(ctx.guild).name}.')
+                 f'configured with {ctx.guild.get_member(self.bot.user.id).name}.')
         reply += channel_str
 
         await ctx.message.channel.send(reply)
@@ -176,7 +183,7 @@ class NoCommandSubscriptionCog():
 
         await ctx.message.channel.send(
             f'{ctx.author.mention} No-command subscription for role {role} has been '
-            f'deregistered with {self.get_bot_member(ctx.guild).name}.'
+            f'deregistered with {ctx.guild.get_member(self.bot.user.id).name}.'
         )
 
     @command()
@@ -192,7 +199,7 @@ class NoCommandSubscriptionCog():
 
         await ctx.message.channel.send(
             f'{ctx.author.mention} No-command subscription for all roles has been '
-            f'deregistered with {self.get_bot_member(ctx.guild).name}.'
+            f'deregistered with {ctx.guild.get_member(self.bot.user.id).name}.'
         )
 
     settings_template = textwrap.dedent(
@@ -217,16 +224,21 @@ class NoCommandSubscriptionCog():
         :param ctx:
         :return:
         """
+        guild_settings = self.db.get_no_command_subscription_settings(ctx.guild)
+        if guild_settings is None:
+            await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
+            return
+
         # This returns a dictionary.
         guild_settings = self.db.get_no_command_subscription_settings(ctx.guild)
 
         roles_str = "(none)"
         if len(guild_settings["roles"]) > 0:
             roles_str = ""
-            for role, channels in guild_settings["roles"].iteritems():
+            for role, channels in guild_settings["roles"].items():
                 roles_str += f' - {role}'
                 if len(channels) > 0:
-                    roles_str = f' ({", ".join(channels)})'
+                    roles_str += f' ({", ".join([x.name for x in channels])})'
                 roles_str += "\n"
 
         await ctx.message.channel.send(
@@ -248,7 +260,8 @@ class NoCommandSubscriptionCog():
         """
         await member.edit(
             roles=list(set([role] + member.roles)),
-            reason=f"Granted the {role} role by {self.get_bot_member(member.guild).name} via no-command subscription"
+            reason=f"Granted the {role} role by {member.guild.get_member(self.bot.user.id).name} "
+                   f"via no-command subscription"
         )
 
         if self.logging_cog is not None:
@@ -268,13 +281,14 @@ class NoCommandSubscriptionCog():
         new_roles = [x for x in member.roles if x != role]
         await member.edit(
             roles=new_roles,
-            reason=f"Removed the {role} role using {self.get_bot_member(member.guild).name} via no-command subscription"
+            reason=f"Removed the {role} role using {member.guild.get_member(self.bot.user.id).name} "
+                   f"via no-command subscription"
         )
 
         if self.logging_cog is not None:
             await self.logging_cog.log_to_channel(
                 member.guild,
-                f"Role {role} was removed from {member} via no-command subscription"
+                f"{member} removed the {role} role via no-command subscription"
             )
 
     async def on_message(self, message):
@@ -298,7 +312,7 @@ class NoCommandSubscriptionCog():
             return
 
         # Having reached here, we're confident the message is from a proper member of the guild.
-        role = role_converter_from_name(message.content)
+        role = role_converter_from_name(message.guild, message.content)
         if role is None or role not in guild_settings["roles"]:
             reply_str = f'{message.author.mention} sorry, I couldn\'t find any subscriptions by that name!'
 
@@ -308,7 +322,10 @@ class NoCommandSubscriptionCog():
             if role.mentionable:
                 reply_str += f'  You will no longer receive notifications when `@{role}` is used.'
             if len(guild_settings["roles"][role]) > 0:
-                reply_str += f'  You have unsubscribed from channels {" ,".join(guild_settings["roles"][role])}.'
+                channel_list_str = ""
+                for channel in guild_settings["roles"][role]:
+                    channel_list_str += f"\n - {channel.name}"
+                reply_str += f'  This means you will no longer see channels:\n{channel_list_str}'
 
         else:  # add the role to the member
             await self.assign_role(message.author, role)
@@ -316,7 +333,10 @@ class NoCommandSubscriptionCog():
             if role.mentionable:
                 reply_str += f'  You will now receive notifications when `@{role}` is used.'
             if len(guild_settings["roles"][role]) > 0:
-                reply_str += f'  You have subscribed to channels {" ,".join(guild_settings["roles"][role])}.'
+                channel_list_str = ""
+                for channel in guild_settings["roles"][role]:
+                    channel_list_str += f"\n - {channel.name}"
+                reply_str += f'  You should now be able to see channels:\n{channel_list_str}'
 
         reply = await message.channel.send(reply_str)
 
