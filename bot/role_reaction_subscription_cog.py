@@ -174,13 +174,13 @@ class RoleReactionSubscriptionCog():
         """
         await member.edit(
             roles=list(set([role] + member.roles)),
-            reason=f"Granted the {role} role by {self.get_bot_member(member.guild).name}"
+            reason=f"Granted the {role} role by {self.get_bot_member(member.guild).name} via reaction"
         )
 
         if self.logging_cog is not None:
             await self.logging_cog.log_to_channel(
                 member.guild,
-                f"{member} was assigned the {role} role"
+                f"{member} was assigned the {role} role via reaction"
             )
 
     async def remove_role(self, member: discord.Member, role: discord.Role):
@@ -194,13 +194,13 @@ class RoleReactionSubscriptionCog():
         new_roles = [x for x in member.roles if x != role]
         await member.edit(
             roles=new_roles,
-            reason=f"Removed the {role} role using {self.get_bot_member(member.guild).name}"
+            reason=f"Removed the {role} role using {self.get_bot_member(member.guild).name} via reaction"
         )
 
         if self.logging_cog is not None:
             await self.logging_cog.log_to_channel(
                 member.guild,
-                f"Role {role} was removed from {member}"
+                f"Role {role} was removed from {member} via reaction"
             )
 
     async def toggle_role(self, member: discord.Member, role: discord.Role):
