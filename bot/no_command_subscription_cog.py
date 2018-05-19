@@ -5,7 +5,7 @@ from io import BytesIO, StringIO
 import discord
 from discord.ext.commands import command, has_permissions, TextChannelConverter
 
-from bot.convert_using_guild import role_converter_from_name
+from bot.convert_using_guild import role_converter_from_name, get_matching_roles_case_insensitive
 
 __author__ = 'Richard Liang'
 
@@ -312,33 +312,97 @@ class NoCommandSubscriptionCog():
             return
 
         # Having reached here, we're confident the message is from a proper member of the guild.
-        role = role_converter_from_name(message.guild, message.content)
-        if role is None or role not in guild_settings["roles"]:
-            reply_str = f'{message.author.mention} sorry, I couldn\'t find any subscriptions by that name!'
+        # We have to handle a few cases:
+        # - if the user typed a name of a role, search for all roles with that name, case-insensitive.
+        #     a) if there's only one matching name, toggle it
+        #     b) if there's several and it matches one exactly, case-sensitive, toggle that role
+        #     c) if there's several and it doesn't match any of them, tell them so
+        # - if what the user typed does not match a role, split it into words and try all of them
+        roles_to_toggle = []
+        ambiguous_roles = []
 
-        elif role in message.author.roles:  # remove the role from the member
-            await self.remove_role(message.author, role)
-            reply_str = f'{message.author.mention} You have unsubscribed from "{role}".'
-            if role.mentionable:
-                reply_str += f'  You will no longer receive notifications when `@{role}` is used.'
-            if len(guild_settings["roles"][role]) > 0:
-                channel_list_str = ""
-                for channel in guild_settings["roles"][role]:
-                    channel_list_str += f"\n - {channel.name}"
-                reply_str += f'  This means you will no longer see channels:\n{channel_list_str}'
+        raw_role_string = message.clean_content
+        whole_thing_matched = False
+        matching_roles = get_matching_roles_case_insensitive(message.guild, raw_role_string)
+        possible_roles = [x for x in matching_roles if x in guild_settings["roles"]]
+        if len(possible_roles) == 1:  # we found an unambiguous match
+            roles_to_toggle = possible_roles
+            whole_thing_matched = True
+        elif len(possible_roles) > 1:  # ambiguous match
+            ambiguous_roles.append((raw_role_string, possible_roles))
+            whole_thing_matched = True
 
-        else:  # add the role to the member
-            await self.assign_role(message.author, role)
-            reply_str = f'{message.author.mention} You have subscribed to "{role}".'
-            if role.mentionable:
-                reply_str += f'  You will now receive notifications when `@{role}` is used.'
-            if len(guild_settings["roles"][role]) > 0:
-                channel_list_str = ""
-                for channel in guild_settings["roles"][role]:
-                    channel_list_str += f"\n - {channel.name}"
-                reply_str += f'  You should now be able to see channels:\n{channel_list_str}'
+        # Having reached here, if we haven't found any kind of a match, we start looking at the
+        # words in the string.
+        unmatched_raw_roles = []
+        raw_role_words = raw_role_string.split()
+        if not whole_thing_matched and len(raw_role_words) == 1:
+            unmatched_raw_roles = [raw_role_string]
 
-        reply = await message.channel.send(reply_str)
+        elif not whole_thing_matched and len(raw_role_words) > 1:
+            for raw_role_word in raw_role_string.split():
+                matching_roles = get_matching_roles_case_insensitive(message.guild, raw_role_word)
+                possible_roles = [x for x in matching_roles if x in guild_settings["roles"]]
+                if len(possible_roles) == 1:
+                    roles_to_toggle.append(possible_roles[0])
+                elif len(possible_roles) > 1:
+                    ambiguous_roles.append((raw_role_word, possible_roles))
+                elif len(possible_roles) == 0:
+                    unmatched_raw_roles.append(raw_role_word)
+
+        # Having reached here, we can:
+        # - toggle all roles in roles_to_toggle
+        # - report all roles in ambiguous_roles with all possible matches and ask the user to say which one exactly
+        # - report all not-found roles and unregistered roles
+
+        replies = []
+        async with message.channel.typing():
+            for role in roles_to_toggle:
+                if role in message.author.roles:  # remove the role from the member
+                    await self.remove_role(message.author, role)
+                    reply_str = f'You have unsubscribed from "{role}".'
+                    if role.mentionable:
+                        reply_str += f'  You will no longer receive notifications when `@{role}` is used.'
+                    if len(guild_settings["roles"][role]) > 0:
+                        channel_list_str = ""
+                        for channel in guild_settings["roles"][role]:
+                            channel_list_str += f"\n - {channel.name}"
+                        reply_str += f'  This means you will no longer see channels:{channel_list_str}'
+
+                else:  # add the role to the member
+                    await self.assign_role(message.author, role)
+                    reply_str = f'You have subscribed to "{role}".'
+                    if role.mentionable:
+                        reply_str += f'  You will now receive notifications when `@{role}` is used.'
+                    if len(guild_settings["roles"][role]) > 0:
+                        channel_list_str = ""
+                        for channel in guild_settings["roles"][role]:
+                            channel_list_str += f"\n - {channel.name}"
+                        reply_str += f'  You should now be able to see channels:{channel_list_str}'
+
+                replies.append(reply_str)
+
+            for raw_role_string, possible_roles in ambiguous_roles:
+                possible_roles_str = f" - `{possible_roles[0].name}`"
+                for possible_role in possible_roles[1:]:
+                    possible_roles_str += f"\n - `{possible_role.name}`"
+                replies.append(
+                    f'I can\'t find a precise match for `{raw_role_string}`; ' 
+                    f'possible matches are:\n{possible_roles_str}'
+                )
+
+            if len(ambiguous_roles) + len(roles_to_toggle) == 0 and len(raw_role_words) > 1:
+                # Nothing matched at all, so add the whole string to the list of unmatched roles.
+                unmatched_raw_roles.append(raw_role_string)
+            if len(unmatched_raw_roles) > 0:
+                no_match_str = f" - `{unmatched_raw_roles[0]}`"
+                for unmatched_raw_role in unmatched_raw_roles[1:]:
+                    no_match_str += f"\n - `{unmatched_raw_role}`"
+                replies.append(f"I couldn't find any subscriptions for:\n{no_match_str}")
+
+            all_replies_str = "\n\n".join(replies)
+            reply_text = f"{message.author.mention}:\n\n{all_replies_str}"
+            reply = await message.channel.send(reply_text)
 
         await asyncio.sleep(guild_settings["wait_time"])
         await message.delete()
