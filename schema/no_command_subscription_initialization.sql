@@ -1,7 +1,8 @@
 create table no_command_subscription(
     guild_id primary key,
     subscription_channel_id,
-    instruction_message,
+    instruction_message_text,
+    instruction_message_id,
     wait_time
 );
 

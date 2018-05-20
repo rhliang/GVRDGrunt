@@ -4,6 +4,13 @@ import discord
 from bot.convert_using_guild import role_converter
 
 
+# create table no_command_subscription(
+#     guild_id primary key,
+#     subscription_channel_id,
+#     instruction_message_text,
+#     instruction_message_id,
+#     wait_time
+# );
 class NoCommandSubscriptionDB(object):
     """
     A class representing the SQLite database we use to store our information.
@@ -14,13 +21,14 @@ class NoCommandSubscriptionDB(object):
         self.conn = sqlite3.connect(self.path_to_db)
 
     def activate_no_command_subscription(self, guild: discord.Guild, subscription_channel: discord.TextChannel,
-                                         instruction_message, wait_time: float):
+                                         instruction_message_text, instruction_message_id, wait_time: float):
         """
         Register this guild in the database.
 
         :param guild:
         :param subscription_channel:
-        :param instruction_message:
+        :param instruction_message_text:
+        :param instruction_message_id:
         :param wait_time:
         :return:
         """
@@ -30,15 +38,17 @@ class NoCommandSubscriptionDB(object):
                 insert into no_command_subscription (
                     guild_id, 
                     subscription_channel_id, 
-                    instruction_message,
+                    instruction_message_text,
+                    instruction_message_id,
                     wait_time
                 )
-                values (?, ?, ?, ?);
+                values (?, ?, ?, ?, ?);
                 """,
                 (
                     guild.id,
                     subscription_channel.id,
-                    instruction_message,
+                    instruction_message_text,
+                    instruction_message_id,
                     wait_time
                 )
             )
@@ -57,6 +67,42 @@ class NoCommandSubscriptionDB(object):
             self.conn.execute(
                 "delete from no_command_subscription where guild_id = ?;",
                 (guild.id,)
+            )
+
+    def change_instruction_message(self, guild: discord.Guild, new_instruction_message_text: str):
+        """
+        Change the stored instruction message text.
+
+        :param guild:
+        :param new_instruction_message_text:
+        :return:
+        """
+        with self.conn:
+            self.conn.execute(
+                """
+                update no_command_subscription
+                set instruction_message_text = ?
+                where guild_id = ?;
+                """,
+                (new_instruction_message_text, guild.id)
+            )
+
+    def change_wait_time(self, guild: discord.Guild, new_wait_time: float):
+        """
+        Change the guild's wait time before deleting messages in the subscription channel.
+
+        :param guild:
+        :param new_wait_time:
+        :return:
+        """
+        with self.conn:
+            self.conn.execute(
+                """
+                update no_command_subscription
+                set wait_time = ?
+                where guild_id = ?;
+                """,
+                (new_wait_time, guild.id)
             )
 
     def register_roles(self, guild: discord.Guild, roles_to_register):
@@ -143,7 +189,8 @@ class NoCommandSubscriptionDB(object):
                 """
                 select 
                     subscription_channel_id,
-                    instruction_message,
+                    instruction_message_id,
+                    instruction_message_text,
                     wait_time
                 from no_command_subscription
                 where guild_id = ?;
@@ -158,7 +205,8 @@ class NoCommandSubscriptionDB(object):
             zip(
                 [
                     "subscription_channel",
-                    "instruction_message",
+                    "instruction_message_id",
+                    "instruction_message_text",
                     "wait_time"
                 ],
                 sub_tuple

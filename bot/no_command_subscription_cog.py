@@ -34,7 +34,7 @@ class NoCommandSubscriptionCog():
             self,
             ctx,
             subscription_channel: discord.TextChannel,
-            instruction_message,
+            instruction_message_text,
             wait_time: float
     ):
         """
@@ -42,7 +42,7 @@ class NoCommandSubscriptionCog():
 
         :param ctx:
         :param subscription_channel:
-        :param instruction_message:
+        :param instruction_message_text:
         :param wait_time:
         :return:
         """
@@ -61,17 +61,72 @@ class NoCommandSubscriptionCog():
             )
             return
 
+        instruction_message = await subscription_channel.send(instruction_message_text)
         self.db.activate_no_command_subscription(
             ctx.guild,
             subscription_channel,
-            instruction_message,
+            instruction_message_text,
+            instruction_message.id,
             wait_time
         )
-        await subscription_channel.send(instruction_message)
 
         await ctx.message.channel.send(
             f'{ctx.author.mention} No-command subscription for this guild has been '
             f'configured with {ctx.guild.get_member(self.bot.user.id).name}.'
+        )
+
+    @command()
+    @has_permissions(administrator=True)
+    async def change_no_command_subscription_instructions(
+            self,
+            ctx,
+            new_instructions: str
+    ):
+        """
+        Change the instruction message text.
+
+        :param ctx:
+        :param new_instructions:
+        :return:
+        """
+        config = self.db.get_no_command_subscription_settings(ctx.guild)
+        if config is None:
+            await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
+            return
+
+        instruction_message = await config["subscription_channel"].get_message(config["instruction_message_id"])
+        try:
+            await instruction_message.edit(content=new_instructions)
+        except discord.HTTPException:
+            raise
+        self.db.change_instruction_message(ctx.guild, new_instructions)
+
+        await ctx.message.channel.send(
+            f'{ctx.author.mention} No-command subscription instruction message now reads "{new_instructions}".'
+        )
+
+    @command()
+    @has_permissions(administrator=True)
+    async def change_no_command_subscription_wait(
+            self,
+            ctx,
+            new_wait_time: float
+    ):
+        """
+        Change the wait time the bot uses before deleting messages.
+
+        :param ctx:
+        :param new_wait_time:
+        :return:
+        """
+        config = self.db.get_no_command_subscription_settings(ctx.guild)
+        if config is None:
+            await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
+            return
+
+        self.db.change_wait_time(ctx.guild, new_wait_time)
+        await ctx.message.channel.send(
+            f'{ctx.author.mention} No-command subscription now waits {new_wait_time} seconds before deleting messages.'
         )
 
     @command()
@@ -95,7 +150,7 @@ class NoCommandSubscriptionCog():
         )
 
     @command()
-    @has_permissions(administrator=True)
+    @has_permissions(manage_roles=True)
     async def register_roles_csv(self, ctx):
         """
         Activate no-command subscription for roles in an attached CSV file.
@@ -137,7 +192,7 @@ class NoCommandSubscriptionCog():
         )
 
     @command()
-    @has_permissions(administrator=True)
+    @has_permissions(manage_roles=True)
     async def register_role(self, ctx, role: discord.Role, *channels):
         """
         Activate no-command subscription for the specified role.
@@ -171,7 +226,7 @@ class NoCommandSubscriptionCog():
         await ctx.message.channel.send(reply)
 
     @command()
-    @has_permissions(administrator=True)
+    @has_permissions(manage_roles=True)
     async def deregister_role(self, ctx, role: discord.Role):
         """
         De-register this role for no-command subscription.
@@ -187,7 +242,7 @@ class NoCommandSubscriptionCog():
         )
 
     @command()
-    @has_permissions(administrator=True)
+    @has_permissions(manage_roles=True)
     async def deregister_all_roles(self, ctx):
         """
         De-register all roles for no-command subscription.
@@ -206,7 +261,8 @@ class NoCommandSubscriptionCog():
         """\
         Subscription channel: {}
         Wait time: {}
-        Instruction message:
+        Instruction message ID: {}
+        Instruction message text:
         ----
         {}
         ----
@@ -216,7 +272,7 @@ class NoCommandSubscriptionCog():
     )
 
     @command()
-    @has_permissions(administrator=True)
+    @has_permissions(manage_roles=True)
     async def show_no_command_settings(self, ctx):
         """
         Show all no-command subscription settings.
@@ -245,7 +301,8 @@ class NoCommandSubscriptionCog():
             self.settings_template.format(
                 guild_settings["subscription_channel"],
                 guild_settings["wait_time"],
-                guild_settings["instruction_message"],
+                guild_settings["instruction_message_id"],
+                guild_settings["instruction_message_text"],
                 roles_str
             )
         )
@@ -347,7 +404,7 @@ class NoCommandSubscriptionCog():
                     roles_to_toggle.append(possible_roles[0])
                 elif len(possible_roles) > 1:
                     ambiguous_roles.append((raw_role_word, possible_roles))
-                elif len(possible_roles) == 0:
+                else:  # no possible roles
                     unmatched_raw_roles.append(raw_role_word)
 
         # Having reached here, we can:
