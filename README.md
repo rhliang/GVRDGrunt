@@ -246,3 +246,61 @@ You may also use `show_react_sub` as a short form.
 Disable reaction-based role subscription for the specified role.
 
 You may also use `stop_react_sub` as a short form.
+
+No-Command Role Subscription
+----------------------------
+
+This feature allows the bot to monitor a designated channel for member messages.  The member only has to type the name 
+of the role that they wish to subscribe to, and the bot will subscribe/unsubscribe the member from the role.
+This is case-insensitive *unless* the name is ambiguous without case sensitivity (since Discord role names *are*
+case-sensitive).  The member can also type in multiple role names (provided all of them are single-word names) to
+subscribe/unsubscribe to all of them at once.  It will also (grudgingly) accept role pings -- although we suggest
+that the instructions discourage this practice!
+
+### Configuration
+
+These commands require `Manage Roles` privileges except where otherwise specified.
+
+##### `activate_no_command_subscription [subscription channel] [instruction message text] [wait time]`
+Activates no-command role subscription.  First, the bot sends a message to the specified channel with the
+given text (usually instructions on how to use the channel).  The bot will then monitor the channel for member 
+messages.  When a message is received, the bot handles it and replies affirmatively or negatively, then removes
+both messages after the specified wait time.
+
+This command requires `Administrator` privileges.
+
+##### `change_no_command_subscription_instructions [new instructions]`
+Changes the instruction message to have the specified text.
+
+This also requires `Administrator` privileges.
+
+##### `change_no_command_subscription_wait [new wait time]`
+Changes the wait time before messages are deleted.
+
+This also requires `Administrator` privileges.
+
+##### `disable_no_command_subscription`
+Disable no-command subscription for this guild.  Note that this does *not* remove database entries for this guild's
+registered roles; that means that if you disable it and re-enable it later, all of the same roles will be 
+registered for no-command subscription.
+
+##### `register_roles_csv` (with a CSV file attachment)
+Register all the roles specified in the file attachment for no-command subscription.  The CSV file must be a single
+column with header `role_name`, and all entries must be simply the role names, *case-sensitive*.  All roles
+will be registered for no-command subscription (unless they were already registered, in which case they remain
+registered).  Note that you cannot specify which channels any of these roles are associated with; for that
+you must register the roles manually.
+
+##### `register_role [role] [optional channel 1] ... [optional channel N]`
+Register the specified role for no-command subscription.  You can also specify any channels which this role
+grants access to.
+
+##### `deregister_role [role]`
+De-register the specified role for no-command subscription; members will no longer be able to use this feature
+to subscribe to this role.
+
+##### `deregister_all_roles`
+De-register all roles for no-command subscription.
+
+##### `show_no_command_settings`
+Print a summary of the no-command subscription settings.
