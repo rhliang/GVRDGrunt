@@ -266,6 +266,10 @@ class NoCommandSubscriptionCog():
         ----
         {}
         ----
+        """
+    )
+    roles_template = textwrap.dedent(
+        """\
         Roles registered for no-command subscription:
         {}
         """
@@ -297,15 +301,31 @@ class NoCommandSubscriptionCog():
                     roles_str += f' ({", ".join([x.name for x in channels])})'
                 roles_str += "\n"
 
-        await ctx.message.channel.send(
-            self.settings_template.format(
-                guild_settings["subscription_channel"],
-                guild_settings["wait_time"],
-                guild_settings["instruction_message_id"],
-                guild_settings["instruction_message_text"],
-                roles_str
-            )
+        summary_message = self.settings_template.format(
+            guild_settings["subscription_channel"],
+            guild_settings["wait_time"],
+            guild_settings["instruction_message_id"],
+            guild_settings["instruction_message_text"]
         )
+        roles_list_message = self.roles_template.format(roles_str)
+
+        # Break up the summary message if necessary.
+        messages_to_send = []
+        if len(summary_message) + len(roles_list_message) <= 2000:
+            messages_to_send = [summary_message + roles_list_message]
+        else:
+            messages_to_send.append(summary_message)
+            curr_role_message = ""
+            for line in roles_list_message.splitlines(keepends=True):
+                if len(curr_role_message) + len(line) > 2000:
+                    messages_to_send.append(curr_role_message)
+                    curr_role_message = line
+                else:
+                    curr_role_message += line
+            messages_to_send.append(curr_role_message)
+
+        for message_text in messages_to_send:
+            await ctx.message.channel.send(message_text)
 
     async def assign_role(self, member: discord.Member, role: discord.Role):
         """
