@@ -613,6 +613,10 @@ class VerificationCog():
         :param message:
         :return:
         """
+        # If this is a DM, do nothing.
+        if message.guild is None:
+            return
+
         # Do nothing if the guild isn't fully configured yet.
         if not self.guild_fully_configured(message.guild):
             return

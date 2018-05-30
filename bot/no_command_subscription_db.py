@@ -1,7 +1,7 @@
 import sqlite3
 import discord
 
-from bot.convert_using_guild import role_converter
+from bot.convert_using_guild import role_converter, emoji_converter
 
 
 # create table no_command_subscription(
@@ -9,7 +9,9 @@ from bot.convert_using_guild import role_converter
 #     subscription_channel_id,
 #     instruction_message_text,
 #     instruction_message_id,
-#     wait_time
+#     wait_time,
+#     show_subscriptions_emoji,
+#     show_subscriptions_emoji_type,
 # );
 class NoCommandSubscriptionDB(object):
     """
@@ -21,7 +23,8 @@ class NoCommandSubscriptionDB(object):
         self.conn = sqlite3.connect(self.path_to_db)
 
     def activate_no_command_subscription(self, guild: discord.Guild, subscription_channel: discord.TextChannel,
-                                         instruction_message_text, instruction_message_id, wait_time: float):
+                                         instruction_message_text, instruction_message_id, wait_time: float,
+                                         show_subscriptions_emoji):
         """
         Register this guild in the database.
 
@@ -30,8 +33,15 @@ class NoCommandSubscriptionDB(object):
         :param instruction_message_text:
         :param instruction_message_id:
         :param wait_time:
+        :param show_subscriptions_emoji:
         :return:
         """
+        emoji_type = "normal"
+        emoji_stored_value = show_subscriptions_emoji
+        if isinstance(show_subscriptions_emoji, discord.Emoji):
+            emoji_type = "custom"
+            emoji_stored_value = show_subscriptions_emoji.id
+
         with self.conn:
             self.conn.execute(
                 """
@@ -40,16 +50,20 @@ class NoCommandSubscriptionDB(object):
                     subscription_channel_id, 
                     instruction_message_text,
                     instruction_message_id,
-                    wait_time
+                    wait_time,
+                    show_subscriptions_emoji,
+                    show_subscriptions_emoji_type
                 )
-                values (?, ?, ?, ?, ?);
+                values (?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     guild.id,
                     subscription_channel.id,
                     instruction_message_text,
                     instruction_message_id,
-                    wait_time
+                    wait_time,
+                    emoji_stored_value,
+                    emoji_type
                 )
             )
 
@@ -62,7 +76,7 @@ class NoCommandSubscriptionDB(object):
         :param guild:
         :return:
         """
-        self.deregister_all_roles(guild)
+        # self.deregister_all_roles(guild)
         with self.conn:
             self.conn.execute(
                 "delete from no_command_subscription where guild_id = ?;",
@@ -103,6 +117,30 @@ class NoCommandSubscriptionDB(object):
                 where guild_id = ?;
                 """,
                 (new_wait_time, guild.id)
+            )
+
+    def change_show_subscriptions_emoji(self, guild: discord.Guild, new_show_subscriptions_emoji):
+        """
+        Change the show-subscriptions emoji.
+
+        :param guild:
+        :param new_show_subscriptions_emoji:
+        :return:
+        """
+        emoji_type = "normal"
+        emoji_stored_value = new_show_subscriptions_emoji
+        if isinstance(new_show_subscriptions_emoji, discord.Emoji):
+            emoji_type = "custom"
+            emoji_stored_value = new_show_subscriptions_emoji.id
+
+        with self.conn:
+            self.conn.execute(
+                """
+                update no_command_subscription
+                set show_subscriptions_emoji = ?, show_subscriptions_emoji_type = ?
+                where guild_id = ?;
+                """,
+                (emoji_stored_value, emoji_type, guild.id)
             )
 
     def register_roles(self, guild: discord.Guild, roles_to_register):
@@ -180,6 +218,7 @@ class NoCommandSubscriptionDB(object):
          - subscription_channel
          - instruction_message
          - wait_time
+         - show_subscriptions_emoji
          - roles: a dictionary keyed by role IDs, with values being lists of associated channels (or [])
 
         :return:
@@ -191,7 +230,8 @@ class NoCommandSubscriptionDB(object):
                     subscription_channel_id,
                     instruction_message_id,
                     instruction_message_text,
-                    wait_time
+                    wait_time,
+                    show_subscriptions_emoji
                 from no_command_subscription
                 where guild_id = ?;
                 """,
@@ -207,12 +247,27 @@ class NoCommandSubscriptionDB(object):
                     "subscription_channel",
                     "instruction_message_id",
                     "instruction_message_text",
-                    "wait_time"
+                    "wait_time",
+                    "show_subscriptions_emoji"
                 ],
                 sub_tuple
             )
         )
         result["subscription_channel"] = guild.get_channel(result["subscription_channel"])
+
+        # Convert the show-subscriptions emoji to the appropriate type if it's a custom emoji.
+        with self.conn:
+            guild_info_cursor = self.conn.execute(
+                """
+                select show_subscriptions_emoji_type
+                from no_command_subscription 
+                where guild_id = ?;
+                """,
+                (guild.id,)
+            )
+            show_subscriptions_emoji_type = guild_info_cursor.fetchone()[0]
+        if show_subscriptions_emoji_type == "custom":
+            result["show_subscriptions_emoji"] = emoji_converter(guild, result["show_subscriptions_emoji"])
 
         # Now retrieve the roles that are registered for no-command subscription.
         result["roles"] = {}

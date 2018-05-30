@@ -3,7 +3,7 @@ import asyncio
 import csv
 from io import BytesIO, StringIO
 import discord
-from discord.ext.commands import command, has_permissions, TextChannelConverter
+from discord.ext.commands import command, has_permissions, TextChannelConverter, BadArgument, EmojiConverter
 
 from bot.convert_using_guild import role_converter_from_name, get_matching_roles_case_insensitive
 
@@ -35,7 +35,8 @@ class NoCommandSubscriptionCog():
             ctx,
             subscription_channel: discord.TextChannel,
             instruction_message_text,
-            wait_time: float
+            wait_time: float,
+            show_subscriptions_emoji
     ):
         """
         Activate no-command subscription for this guild.
@@ -44,6 +45,7 @@ class NoCommandSubscriptionCog():
         :param subscription_channel:
         :param instruction_message_text:
         :param wait_time:
+        :param show_subscriptions_emoji:
         :return:
         """
         # First, check that the client can write to this channel and manage messages.
@@ -60,14 +62,28 @@ class NoCommandSubscriptionCog():
                 f'permissions on channel {subscription_channel}.'
             )
             return
+        elif not channel_perms.add_reactions:
+            await ctx.message.channel.send(
+                f'{ctx.author.mention} {ctx.guild.get_member(self.bot.user.id)} needs Add Reactions '
+                f'permissions on channel {subscription_channel}.'
+            )
+            return
+        elif not channel_perms.read_message_history:
+            await ctx.message.channel.send(
+                f'{ctx.author.mention} {ctx.guild.get_member(self.bot.user.id)} needs Read Message History '
+                f'permissions on channel {subscription_channel}.'
+            )
+            return
 
         instruction_message = await subscription_channel.send(instruction_message_text)
+        await instruction_message.add_reaction(show_subscriptions_emoji)
         self.db.activate_no_command_subscription(
             ctx.guild,
             subscription_channel,
             instruction_message_text,
             instruction_message.id,
-            wait_time
+            wait_time,
+            show_subscriptions_emoji
         )
 
         await ctx.message.channel.send(
@@ -127,6 +143,43 @@ class NoCommandSubscriptionCog():
         self.db.change_wait_time(ctx.guild, new_wait_time)
         await ctx.message.channel.send(
             f'{ctx.author.mention} No-command subscription now waits {new_wait_time} seconds before deleting messages.'
+        )
+
+    @command()
+    @has_permissions(administrator=True)
+    async def change_show_subscription_emoji(
+            self,
+            ctx,
+            new_show_subscription_emoji
+    ):
+        """
+        Change the emoji used by the bot for showing subscriptions.
+
+        :param ctx:
+        :param new_show_subscription_emoji:
+        :return:
+        """
+        emoji_converter = EmojiConverter()
+        try:
+            actual_emoji = await emoji_converter.convert(ctx, new_show_subscription_emoji)
+        except BadArgument:
+            actual_emoji = new_show_subscription_emoji
+
+        config = self.db.get_no_command_subscription_settings(ctx.guild)
+        if config is None:
+            await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
+            return
+
+        instruction_message = await config["subscription_channel"].get_message(config["instruction_message_id"])
+        members_who_already_added_this = [x for x in instruction_message.reactions
+                                          if x.emoji == actual_emoji]
+        if not ctx.guild.get_member(self.bot.user.id) in members_who_already_added_this:
+            await instruction_message.add_reaction(actual_emoji)
+        self.db.change_show_subscriptions_emoji(ctx.guild, actual_emoji)
+
+        await ctx.message.channel.send(
+            f'{ctx.author.mention} No-command subscription now uses {actual_emoji} to send '
+            f'members\' list of roles.'
         )
 
     @command()
@@ -262,6 +315,7 @@ class NoCommandSubscriptionCog():
         Subscription channel: {}
         Wait time: {}
         Instruction message ID: {}
+        Show subscriptions emoji: {}
         Instruction message text:
         ----
         {}
@@ -305,6 +359,7 @@ class NoCommandSubscriptionCog():
             guild_settings["subscription_channel"],
             guild_settings["wait_time"],
             guild_settings["instruction_message_id"],
+            guild_settings["show_subscriptions_emoji"],
             guild_settings["instruction_message_text"]
         )
         roles_list_message = self.roles_template.format(roles_str)
@@ -374,6 +429,10 @@ class NoCommandSubscriptionCog():
 
         :return:
         """
+        # If this is a DM, do nothing.
+        if message.guild is None:
+            return
+
         guild_settings = self.db.get_no_command_subscription_settings(message.guild)
 
         # Do nothing if the guild doesn't have no-command subscription active.
@@ -484,3 +543,84 @@ class NoCommandSubscriptionCog():
         await asyncio.sleep(guild_settings["wait_time"])
         await message.delete()
         await reply.delete()
+
+    # Now build some listeners.
+    async def reaction_clicked(self, payload):
+        """
+        DM a list of the member's roles when the appropriate reaction is clicked.
+
+        :param payload:
+        :return:
+        """
+        if payload.user_id == self.bot.user.id:
+            return
+        guild = self.bot.get_guild(payload.guild_id)
+        guild_settings = self.db.get_no_command_subscription_settings(guild)
+
+        # Do nothing if the guild doesn't have no-command subscription active.
+        if guild_settings is None:
+            return
+
+        if payload.message_id != guild_settings["instruction_message_id"]:
+            return
+
+        # Do nothing if the reaction is not the appropriate reaction.
+        if isinstance(guild_settings["show_subscriptions_emoji"], discord.Emoji):
+            if not payload.emoji.is_custom_emoji():
+                return
+            elif payload.emoji.id != guild_settings["show_subscriptions_emoji"].id:
+                return
+        else:
+            if payload.emoji.is_custom_emoji():
+                return
+            elif str(payload.emoji) != guild_settings["show_subscriptions_emoji"]:
+                return
+
+        adding_member = guild.get_member(payload.user_id)
+        # Retrieve the member's roles.
+        role_strings = []
+        for role in adding_member.roles:
+            if role not in guild_settings["roles"]:
+                continue
+
+            role_string = f" - {role.name}"
+            role_functions = []
+            if role.mentionable:
+                role_functions.append(f"notified when `@{role.name}` is used")
+            if len(guild_settings["roles"][role]) > 0:
+                role_functions.append(f"can see channel(s) "
+                                      f"{', '.join([x.name for x in guild_settings['roles'][role]])}")
+            if len(role_functions) > 0:
+                role_string += f": {'; '.join(role_functions)}"
+            role_strings.append(role_string)
+
+        list_of_roles_string = f"You have no subscriptions in guild {guild.name}."
+        if len(role_strings) > 0:
+            bulleted_roles_list = "\n".join(role_strings)
+            list_of_roles_string = (
+                f"You are subscribed to the following in guild {guild.name}:\n\n"
+                f"{bulleted_roles_list}"
+            )
+        await adding_member.send(list_of_roles_string)
+
+    async def on_raw_reaction_add(self, payload):
+        """
+        Monitor for a "show subscriptions" reaction added.
+
+        Ignore all other reactions.
+
+        :param payload:
+        :return:
+        """
+        await self.reaction_clicked(payload)
+
+    async def on_raw_reaction_remove(self, payload):
+        """
+        Monitor for a "show subscriptions" reaction removed.
+
+        Ignore all other reactions.
+
+        :param payload:
+        :return:
+        """
+        await self.reaction_clicked(payload)

@@ -253,6 +253,10 @@ class EXGateCog():
 
         :return:
         """
+        # If this is a DM, do nothing.
+        if message.guild is None:
+            return
+
         ex_gate_info = self.db.get_ex_gate_info(message.guild)
         # Do nothing if the guild doesn't have EX gating active.
         if ex_gate_info is None:

@@ -117,6 +117,10 @@ class BaconpaTrollCog():
         :param message:
         :return:
         """
+        # If this is a DM, do nothing.
+        if message.guild is None:
+            return
+
         if message.guild not in self.guild_info:
             return
         baconpatrol = self.guild_info[message.guild]
