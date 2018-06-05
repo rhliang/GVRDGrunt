@@ -255,17 +255,19 @@ of the role that they wish to subscribe to, and the bot will subscribe/unsubscri
 This is case-insensitive *unless* the name is ambiguous without case sensitivity (since Discord role names *are*
 case-sensitive).  The member can also type in multiple role names (provided all of them are single-word names) to
 subscribe/unsubscribe to all of them at once.  It will also (grudgingly) accept role pings -- although we suggest
-that the instructions discourage this practice!
+that the instructions discourage this practice!  Members can receive a DM with a list of their subscriptions by 
+clicking on a (configurable) reaction under the instruction message.
 
 ### Configuration
 
 These commands require `Manage Roles` privileges except where otherwise specified.
 
-##### `activate_no_command_subscription [subscription channel] [instruction message text] [wait time]`
+##### `activate_no_command_subscription [subscription channel] [instruction message text] [wait time] [list emoji]`
 Activates no-command role subscription.  First, the bot sends a message to the specified channel with the
 given text (usually instructions on how to use the channel).  The bot will then monitor the channel for member 
 messages.  When a message is received, the bot handles it and replies affirmatively or negatively, then removes
-both messages after the specified wait time.
+both messages after the specified wait time.  It also adds the list emoji as a reaction that members can press
+to get a list of their subscriptions.
 
 This command requires `Administrator` privileges.
 
@@ -278,6 +280,10 @@ This also requires `Administrator` privileges.
 Changes the wait time before messages are deleted.
 
 This also requires `Administrator` privileges.
+
+##### `change_show_subscription_emoji [new show subscription emoji]`
+Changes the emoji used for the "show subscription button" reaction.  It will add this to the instruction
+message if it hasn't already added it.
 
 ##### `disable_no_command_subscription`
 Disable no-command subscription for this guild.  Note that this does *not* remove database entries for this guild's
@@ -304,3 +310,15 @@ De-register all roles for no-command subscription.
 
 ##### `show_no_command_settings`
 Print a summary of the no-command subscription settings.
+
+Role Set Operations
+-------------------
+
+This allows computation of more complex operations on roles; for example, finding members that are in the 
+intersection of two roles, union of two roles, complement of a role, etc.  Expressions can handle unions with
+`or`, intersections with `and`, negations with `not`, and parentheses for grouping.
+
+##### `.members [role expression]`
+Evaluate the role expression.  Role names that contain non-alphanumeric characters must be enclosed in single quotes.
+Use the role names, not role mentions.  Normally the role expression should be put in double-quotes; however, 
+in a lot of situations you can simply type the expression after the command and it will work.

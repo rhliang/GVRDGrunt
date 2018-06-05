@@ -97,24 +97,42 @@ class RoleSetOperationsCog():
     @has_permissions(manage_roles=True)
     async def members(self, ctx, *role_statement_tokens):
         """
-        Given a list of role names or negations thereof (![role name]), return the members in all of them.
+        Given a set expression with role names, evaluate the set expression.
 
-        We'd like to support things like (role1+role2+role3)
+        The expression respects unions ("or"), intersections ("and"), negations ("not"), and parentheses.
+        Role names with non-alphanumeric characters must be surrounded by single quotes.
 
         :param ctx:
         :param role_statement_tokens:
         :return:
         """
-        role_statement = " ".join(role_statement_tokens)
-        parser = self.get_guild_role_parser(ctx.guild)
-        result = parser.parseString(role_statement)
-        result = result[0]
+        async with ctx.message.channel.typing():
+            role_statement = " ".join(role_statement_tokens)
+            parser = self.get_guild_role_parser(ctx.guild)
+            result = parser.parseString(role_statement)
+            result = result[0]
 
-        member_list_str = "(none)"
-        if len(result) > 0:
-            member_list = list(result)
-            member_list_str = f" - {member_list[0].display_name} ({member_list[0]})"
-            for member in member_list[1:]:
-                member_list_str += f"\n - {member.display_name} ({member})"
+            member_list_str = f"{ctx.author.mention}:\n\n"
+            if len(result) == 0:
+                member_list_str += "(none)"
+            else:
+                member_list = list(result)
+                member_list_str += f" - {member_list[0].display_name} ({member_list[0]})"
+                for member in member_list[1:]:
+                    member_list_str += f"\n - {member.display_name} ({member})"
 
-        await ctx.message.channel.send(f'{ctx.author.mention}:\n\n{member_list_str}')
+            messages_to_send = []
+            if len(member_list_str) <= 2000:
+                messages_to_send = [member_list_str]
+            else:
+                curr_message = ""
+                for line in member_list_str.splitlines(keepends=True):
+                    if len(curr_message) + len(line) > 2000:
+                        messages_to_send.append(curr_message)
+                        curr_message = line
+                    else:
+                        curr_message += line
+                messages_to_send.append(curr_message)
+
+            for message_text in messages_to_send:
+                await ctx.message.channel.send(message_text)
