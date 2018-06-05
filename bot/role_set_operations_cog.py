@@ -91,7 +91,9 @@ class RoleSetOperationsCog():
         term.setParseAction(self.get_guild_term_action(guild))
         expression.setParseAction(self.expression_action)
 
-        return expression
+        role_statement = pp.StringStart() + expression + pp.StringEnd()
+
+        return role_statement
 
     @command()
     @has_permissions(manage_roles=True)
