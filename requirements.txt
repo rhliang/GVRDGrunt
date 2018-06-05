@@ -1,2 +1,3 @@
 yarl == 1.1.1  # seems to break otherwise
 -e git+https://github.com/Rapptz/discord.py.git@60f0b22cbb0d603cdad4117df2cfc7c84c9e9e40#egg=discord.py
+pyparsing
