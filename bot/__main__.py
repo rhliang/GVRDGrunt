@@ -48,7 +48,7 @@ def main():
     gvrd_grunt.add_cog(RoleReactionSubscriptionCog(gvrd_grunt, role_reaction_subscription_db, logging_cog=logging_cog))
     gvrd_grunt.add_cog(BaconpaTrollCog(gvrd_grunt))
     gvrd_grunt.add_cog(NoCommandSubscriptionCog(gvrd_grunt, no_command_subscription_db, logging_cog=logging_cog))
-    gvrd_grunt.add_cog(RoleSetOperationsCog())
+    gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):
