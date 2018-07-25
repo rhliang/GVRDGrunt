@@ -9,8 +9,7 @@ class SpamCog():
     """
     Spam a channel for stress-testing purposes.  DO NOT LET THIS ANYWHERE NEAR A PRODUCTION BOT!
     """
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self):
         self.counter = 0
         self.pause = 1.0
         self.channel = None
@@ -64,6 +63,7 @@ class SpamCog():
                 await ctx.message.channel.send(
                     f"{ctx.author.mention} No channel is currently being spammed."
                 )
+            spam_channel = self.channel
             self.channel = None
             self.counter = 0
-            await ctx.message.channel.send(f"{ctx.author.mention} Channel {self.channel} is no longer being spammed.")
+            await ctx.message.channel.send(f"{ctx.author.mention} Channel {spam_channel} is no longer being spammed.")
