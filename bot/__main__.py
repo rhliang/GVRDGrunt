@@ -17,7 +17,7 @@ from bot.baconpatroll_cog import BaconpaTrollCog
 from bot.no_command_subscription_cog import NoCommandSubscriptionCog
 from bot.no_command_subscription_db import NoCommandSubscriptionDB
 from bot.role_set_operations_cog import RoleSetOperationsCog
-from bot.spam_cog import SpamCog
+# from bot.spam_cog import SpamCog
 
 __author__ = "Richard Liang"
 
