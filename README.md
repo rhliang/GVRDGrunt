@@ -321,4 +321,12 @@ intersection of two roles, union of two roles, complement of a role, etc.  Expre
 ##### `.members [role expression]`
 Evaluate the role expression.  Role names that contain non-alphanumeric characters must be enclosed in single quotes.
 Use the role names, not role mentions.  Normally the role expression should be put in double-quotes; however, 
-in a lot of situations you can simply type the expression after the command and it will work.
+in a lot of situations you can simply type the expression after the command and it will work.  The bot will return
+the list of members in chunks of 2000 characters; after every message, if there's more to come, it will prompt
+you for whether you wish to continue.
+
+##### `.members_joined_between_dates [role expression] [start datetime (YYYY-MM-DDTHH24-MM-SS)] [end datetime]`
+Evaluate the role expression, additionally filtering to only include members who joined between
+the specified datetimes.  Role names that contain non-alphanumeric characters must be enclosed in single quotes.
+Use the role names, not role mentions.  Unlike `.members`, the role expression *must* be in double-quotes if 
+it's more than one word.  Both the start and end datetimes are formatted in the same way.
