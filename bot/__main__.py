@@ -52,7 +52,7 @@ def main():
     gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
 
     # For testing only -- *do not install on a production bot!*
-    gvrd_grunt.add_cog(SpamCog())
+    # gvrd_grunt.add_cog(SpamCog())
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):
