@@ -18,6 +18,7 @@ from bot.no_command_subscription_cog import NoCommandSubscriptionCog
 from bot.no_command_subscription_db import NoCommandSubscriptionDB
 from bot.role_set_operations_cog import RoleSetOperationsCog
 # from bot.spam_cog import SpamCog
+from bot.purge_channels_cog import PurgeChannelsCog
 
 __author__ = "Richard Liang"
 
@@ -50,6 +51,7 @@ def main():
     gvrd_grunt.add_cog(BaconpaTrollCog(gvrd_grunt))
     gvrd_grunt.add_cog(NoCommandSubscriptionCog(gvrd_grunt, no_command_subscription_db, logging_cog=logging_cog))
     gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
+    gvrd_grunt.add_cog(PurgeChannelsCog(gvrd_grunt))
 
     # For testing only -- *do not install on a production bot!*
     # gvrd_grunt.add_cog(SpamCog())

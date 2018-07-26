@@ -60,13 +60,12 @@ class PurgeChannelsCog():
 
         # First, clear the pins.
         num_pins_cleared = 0
+        messages_to_purge_ids = [x.id for x in messages_to_purge]
         for pinned_message in await channel.pins():
-            if pinned_message in messages_to_purge:
+            if pinned_message.id in messages_to_purge_ids:
                 await pinned_message.unpin()
                 num_pins_cleared += 1
-
         await channel.purge(limit=num_messages)
-
         return num_messages, num_pins_cleared
 
     @command()
