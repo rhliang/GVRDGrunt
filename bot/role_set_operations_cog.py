@@ -1,6 +1,8 @@
 import pyparsing as pp
 from discord.ext.commands import command, has_permissions
+import discord
 import asyncio
+from datetime import datetime
 
 from bot.convert_using_guild import role_converter_from_name
 
@@ -135,15 +137,53 @@ class RoleSetOperationsCog():
             parser = self.get_guild_role_parser(ctx.guild)
             result = parser.parseString(role_statement)
             result = sorted(result[0], key=lambda member: str(member.display_name).lower())
-            num_members = len(result)
 
-            member_count_str = f"{ctx.author.mention}: {num_members} members"
-            await ctx.message.channel.send(member_count_str)
-            if num_members == 0:
-                return
+        await self.report_members(list(result), ctx.channel, ctx.author)
 
-        # Having reached here, we know we have at least 1 member.
-        member_list = list(result)
+    @command()
+    @has_permissions(manage_roles=True)
+    async def members_joined_between_dates(self, ctx, role_statement, start_datetime_str: str, end_datetime_str: str):
+        """
+        Evaluate the set expression and restrict to members who joined between the specified dates.
+
+        Note that the role statement must be quoted if it contains more than one word.
+
+        :param ctx:
+        :param role_statement:
+        :param start_date: a string in the format YYYY-MM-DDTHH:MM:SS
+        :param end_date: same
+        :return:
+        """
+        async with ctx.message.channel.typing():
+            parser = self.get_guild_role_parser(ctx.guild)
+            result = parser.parseString(role_statement)
+
+            start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S")
+            end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S")
+            members_filtered_by_date = [x for x in result[0] if start_datetime <= x.joined_at <= end_datetime]
+
+            members_filtered_by_date = sorted(
+                members_filtered_by_date,
+                key=lambda member: str(member.display_name).lower()
+            )
+
+        await self.report_members(members_filtered_by_date, ctx.channel, ctx.author)
+
+    async def report_members(self, member_list, channel: discord.TextChannel, caller: discord.Member):
+        """
+        Helper function that takes a member list and reports it back to a member in a specified channel.
+        :param member_list:
+        :param channel:
+        :param caller:
+        :return:
+        """
+        num_members = len(member_list)
+
+        member_count_str = f"{caller.mention}: {num_members} members"
+        await channel.send(member_count_str)
+        if num_members == 0:
+            return
+
         member_list_str = f"- {member_list[0].display_name} ({member_list[0]})"
         for member in member_list[1:]:
             member_list_str += f"\n- {member.display_name} ({member})"
@@ -163,13 +203,13 @@ class RoleSetOperationsCog():
             messages_to_send.append(curr_message)
 
         for i, message_text in enumerate(messages_to_send):
-            async with ctx.message.channel.typing():
-                await ctx.message.channel.send(message_text)
+            async with channel.typing():
+                await channel.send(message_text)
                 if i + 1 < len(messages_to_send):
-                    await ctx.message.channel.send(f"Show more members (y/n)?  Will cancel in {self.timeout} seconds.")
+                    await channel.send(f"Show more members (y/n)?  Will cancel in {self.timeout} seconds.")
 
                     def check(m):
-                        if m.author != ctx.author:
+                        if m.author != caller:
                             return False
                         elif m.content.lower() in ("y", "n", "yes", "no"):
                             return True
@@ -183,6 +223,6 @@ class RoleSetOperationsCog():
                         cancel_listing = True
 
                     if cancel_listing:
-                        async with ctx.message.channel.typing():
-                            await ctx.message.channel.send(f"Cancelled.")
+                        async with channel.typing():
+                            await channel.send(f"Cancelled.")
                         return
