@@ -316,7 +316,8 @@ Role Set Operations
 
 This allows computation of more complex operations on roles; for example, finding members that are in the 
 intersection of two roles, union of two roles, complement of a role, etc.  Expressions can handle unions with
-`or`, intersections with `and`, negations with `not`, and parentheses for grouping.
+`or`, intersections with `and`, negations with `not`, and parentheses for grouping.  These commands require
+`Manage Roles` permissions.
 
 ##### `.members [role expression]`
 Evaluate the role expression.  Role names that contain non-alphanumeric characters must be enclosed in single quotes.
