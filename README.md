@@ -330,3 +330,16 @@ Evaluate the role expression, additionally filtering to only include members who
 the specified datetimes.  Role names that contain non-alphanumeric characters must be enclosed in single quotes.
 Use the role names, not role mentions.  Unlike `.members`, the role expression *must* be in double-quotes if 
 it's more than one word.  Both the start and end datetimes are formatted in the same way.
+
+Purge channels and categories
+-----------------------------
+
+This allows users with `Manage Messages` permissions to purge channels and entire categories.  The bot must also
+have `Manage Messages` permissions on the channels it's trying to purge.
+
+##### `.purgechannel [optional number of messages to purge]`
+Basically a clone of DynoBot's `?purge` command, but callable by non-administrators.  This also unpins messages 
+before deleting them, although because ghost pins are not viewable whether this actually *happens* is untested.
+
+##### `.purgecategory [category]`
+Purges the entire category.  This also unpins messages, though again this is unverified.
