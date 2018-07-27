@@ -35,7 +35,7 @@ def main():
         settings = json.load(f)
 
     gvrd_grunt = commands.Bot(
-        command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
+        command_prefix=commands.when_mentioned(),
         description="Spams a channel."
     )
     # verification_db = VerificationDB(settings["sqlite_db"])
