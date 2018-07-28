@@ -119,6 +119,29 @@ class RoleSetOperationsCog():
 
         return role_statement
 
+    def evaluate_role_statement(self, guild, role_statement, start_datetime_str=None, end_datetime_str=None):
+        """
+        Evaluate the role statement and return a sorted list of members.
+
+        :param guild:
+        :param role_statement:
+        :param start_datetime_str: if this and end_datetime_str are specified, filter to members
+        that joined between these datetimes
+        :param end_datetime_str:
+        :return:
+        """
+        parser = self.get_guild_role_parser(guild)
+        result = parser.parseString(role_statement)
+
+        if start_datetime_str is not None and end_datetime_str is not None:
+            start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S")
+            end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S")
+            members_list = [x for x in result[0] if start_datetime <= x.joined_at <= end_datetime]
+        else:
+            members_list = result[0]
+
+        return sorted(members_list, key=lambda member: str(member.display_name).lower())
+
     @command()
     @has_permissions(manage_roles=True)
     async def members(self, ctx, *role_statement_tokens):
@@ -134,11 +157,23 @@ class RoleSetOperationsCog():
         """
         async with ctx.message.channel.typing():
             role_statement = " ".join(role_statement_tokens)
-            parser = self.get_guild_role_parser(ctx.guild)
-            result = parser.parseString(role_statement)
-            result = sorted(result[0], key=lambda member: str(member.display_name).lower())
-
+            result = self.evaluate_role_statement(ctx.guild, role_statement)
         await self.report_members(list(result), ctx.channel, ctx.author)
+
+    @command()
+    @has_permissions(manage_roles=True)
+    async def members_mention(self, ctx, *role_statement_tokens):
+        """
+        Similar to `members` but lists members by mentions.
+
+        :param ctx:
+        :param role_statement_tokens:
+        :return:
+        """
+        async with ctx.message.channel.typing():
+            role_statement = " ".join(role_statement_tokens)
+            result = self.evaluate_role_statement(ctx.guild, role_statement)
+        await self.report_members(list(result), ctx.channel, ctx.author, mentions=True)
 
     @command()
     @has_permissions(manage_roles=True)
@@ -150,31 +185,61 @@ class RoleSetOperationsCog():
 
         :param ctx:
         :param role_statement:
-        :param start_date: a string in the format YYYY-MM-DDTHH:MM:SS
-        :param end_date: same
+        :param start_datetime_str: a string in the format YYYY-MM-DDTHH:MM:SS
+        :param end_datetime_str: same
         :return:
         """
         async with ctx.message.channel.typing():
-            parser = self.get_guild_role_parser(ctx.guild)
-            result = parser.parseString(role_statement)
-
-            start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S")
-            end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S")
-            members_filtered_by_date = [x for x in result[0] if start_datetime <= x.joined_at <= end_datetime]
-
-            members_filtered_by_date = sorted(
-                members_filtered_by_date,
-                key=lambda member: str(member.display_name).lower()
+            members_filtered_by_date = self.evaluate_role_statement(
+                ctx.guild,
+                role_statement,
+                start_datetime_str,
+                end_datetime_str
             )
-
         await self.report_members(members_filtered_by_date, ctx.channel, ctx.author)
 
-    async def report_members(self, member_list, channel: discord.TextChannel, caller: discord.Member):
+    @command()
+    @has_permissions(manage_roles=True)
+    async def members_joined_between_dates_mention(self, ctx, role_statement,
+                                                   start_datetime_str: str, end_datetime_str: str):
+        """
+        Similar to `members_joined_between_dates` but lists members by mention.
+
+        :param ctx:
+        :param role_statement:
+        :param start_datetime_str: a string in the format YYYY-MM-DDTHH:MM:SS
+        :param end_datetime_str: same
+        :return:
+        """
+        async with ctx.message.channel.typing():
+            members_filtered_by_date = self.evaluate_role_statement(
+                ctx.guild,
+                role_statement,
+                start_datetime_str,
+                end_datetime_str
+            )
+        await self.report_members(members_filtered_by_date, ctx.channel, ctx.author, mentions=True)
+
+    @staticmethod
+    def member_list_entry(member, mentions=False):
+        """
+        Helper that creates a single list entry for a member.
+        :param member:
+        :param mentions: if True, the entry mentions the member; if False, it shows the display name and username.
+        :return:
+        """
+        if not mentions:
+            return f"- {member.display_name} ({member})"
+        return f"- {member.mention}"
+
+    async def report_members(self, member_list, channel: discord.TextChannel, caller: discord.Member,
+                             mentions=False):
         """
         Helper function that takes a member list and reports it back to a member in a specified channel.
         :param member_list:
         :param channel:
         :param caller:
+        :param mentions: if False, show the display name and username; if True, list mentions.
         :return:
         """
         num_members = len(member_list)
@@ -184,9 +249,9 @@ class RoleSetOperationsCog():
         if num_members == 0:
             return
 
-        member_list_str = f"- {member_list[0].display_name} ({member_list[0]})"
+        member_list_str = self.member_list_entry(member_list[0], mentions=mentions)
         for member in member_list[1:]:
-            member_list_str += f"\n- {member.display_name} ({member})"
+            member_list_str += "\n" + self.member_list_entry(member, mentions=mentions)
 
         message_length = 2000
         messages_to_send = []
