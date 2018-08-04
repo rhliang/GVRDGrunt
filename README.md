@@ -350,3 +350,43 @@ before deleting them, although because ghost pins are not viewable whether this 
 
 ##### `.purgecategory [category]`
 Purges the entire category.  This also unpins messages, though again this is unverified.
+
+Remind users to subscribe to suggested roles
+--------------------------------------------
+
+A guild may remind verified members to subscribe to some suggested roles.  The calling user must have `Manage Roles`
+permissions.
+
+##### `.show_role_reminder_config` (or `.show_role_reminder_settings`)
+Display the guild's role reminder settings.
+
+##### `.activate_role_reminders [reminder channel] [reminder message] [wait time] [reminded role]`
+Activates role reminder functionality for this guild.  Users that joined greater than the specified number
+of hours ago will be reminded with the specified message (this should be a string with a single "{}" where 
+user mentions will be inserted).  After the reminder, they will be assigned the specified `remindedrole` to 
+denote them as having been reminded.
+
+##### `.add_verified_role [verified role]`
+This denotes the specified role as one belonging to only verified members.
+
+##### `.add_suggested_role [suggested role]`
+This denotes the specified role as one of the guild's suggested roles (i.e. the guild is not useful without
+one of these roles).
+
+##### `.deactivate_role_reminders`
+Remove configuration from the database for this guild and deactivate role reminder functionality.
+
+##### `.remove_verified_role [role]`
+Remove this from consideration as a "verified member" role.
+
+##### `.clear_verified_roles`
+Clear *all* "verified member" roles.
+
+##### `.remove_suggested_role [role]`
+Remove this from the list of the guild's suggested roles.
+
+##### `.clear_suggested_roles`
+Clear the guild's entire list of suggested roles.
+
+##### `.rolereminder`
+Ping users to remind them of the roles, and mark them as having been reminded.

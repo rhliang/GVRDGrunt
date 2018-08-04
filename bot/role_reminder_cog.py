@@ -27,9 +27,10 @@ class RoleReminderCog():
         """
     )
 
-    def __init__(self, bot, db):
+    def __init__(self, bot, db, logging_cog=None):
         self.bot = bot
         self.db = db  # a RoleReminderDB or workalike
+        self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
 
     @staticmethod
     def role_list_helper(role_list):
@@ -265,3 +266,9 @@ class RoleReminderCog():
                     reason=f"Reminded to add a suggested role by {ctx.author.name} using "
                            f"{ctx.guild.get_member(self.bot.user.id).name}"
                 )
+
+                if self.logging_cog is not None:
+                    await self.logging_cog.log_to_channel(
+                        member.guild,
+                        f"{member} was reminded to subscribe to suggested roles"
+                    )
