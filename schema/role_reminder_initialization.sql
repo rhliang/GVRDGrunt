@@ -3,7 +3,7 @@
 create table role_reminder(
     guild_id primary key,
     reminder_channel_id,
-    reminder_message_id,
+    reminder_message,
     wait_time,
     reminded_role_id
 );

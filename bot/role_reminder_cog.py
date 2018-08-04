@@ -41,11 +41,14 @@ class RoleReminderCog():
         if len(role_list) == 0:
             return "(none)"
         role_list_str = f"- {role_list[0]}"
-        for role in role_list:
+        for role in role_list[1:]:
             role_list_str += f"\n- {role}"
         return role_list_str
 
-    @command(help="Show role reminder configuration.")
+    @command(
+        help="Show role reminder configuration.",
+        aliases=["show_role_reminder_settings"]
+    )
     @has_permissions(manage_roles=True)
     async def show_role_reminder_config(self, ctx):
         """
@@ -63,8 +66,8 @@ class RoleReminderCog():
             role_reminder_info["reminder_message"],
             role_reminder_info["wait_time"],
             role_reminder_info["reminded_role"],
-            self.role_list_helper["verified_roles"],
-            self.role_list_helper["suggested_roles"]
+            self.role_list_helper(role_reminder_info["verified_roles"]),
+            self.role_list_helper(role_reminder_info["suggested_roles"])
         )
         await ctx.channel.send(f"{ctx.author.mention}:\n\n{summary_str}")
 
@@ -128,7 +131,7 @@ class RoleReminderCog():
         """
         self.db.add_suggested_role(ctx.guild, suggested_role)
         await ctx.message.channel.send(
-            f"{ctx.author.mention} Role {verified_role} is now understood as one suggested to users."
+            f"{ctx.author.mention} Role {suggested_role} is now understood as one suggested to users."
         )
 
     @command(help="Deactivate role reminder functionality.")
@@ -217,12 +220,17 @@ class RoleReminderCog():
         if role_reminder_info is None:
             raise RoleReminderNotConfigured("Role reminders are not configured.")
 
+        # Bail out if there are no suggested roles.
+        if len(role_reminder_info["suggested_roles"]) == 0:
+            await ctx.channel.send(f"{ctx.author.mention} This guild has no suggested roles.")
+            return
+
         verified_members = set()
         for verified_role in role_reminder_info["verified_roles"]:
             verified_members = verified_members.union(verified_role.members)
 
         # Remove members that have already been reminded.
-        verified_members = verified_members.difference(role_reminder_info["reminded_role"])
+        verified_members = verified_members.difference(role_reminder_info["reminded_role"].members)
 
         # Remove members that joined too recently (as per the guild's specified wait time).
         too_recent = datetime.now() - timedelta(hours=role_reminder_info["wait_time"])
@@ -255,5 +263,5 @@ class RoleReminderCog():
                 await member.edit(
                     roles=list(set(new_roles)),
                     reason=f"Reminded to add a suggested role by {ctx.author.name} using "
-                           f"{self.get_bot_member(guild).name}"
+                           f"{ctx.guild.get_member(self.bot.user.id).name}"
                 )

@@ -7,7 +7,7 @@ from bot.convert_using_guild import role_converter
 # create table role_reminder(
 #     guild_id primary key,
 #     reminder_channel_id,
-#     reminder_message_id,
+#     reminder_message,
 #     wait_time,
 #     reminded_role_id
 # );
@@ -75,7 +75,7 @@ class RoleReminderDB(object):
                 """,
                 (guild.id,)
             )
-            verified_roles = [role_converter(guild, role_id) for role_id in verified_roles_cursor]
+            verified_roles = [role_converter(guild, row[0]) for row in verified_roles_cursor]
         result["verified_roles"] = verified_roles
 
         with self.conn:
@@ -87,7 +87,7 @@ class RoleReminderDB(object):
                 """,
                 (guild.id,)
             )
-            suggested_roles = [role_converter(guild, role_id) for role_id in suggested_roles_cursor]
+            suggested_roles = [role_converter(guild, row[0]) for row in suggested_roles_cursor]
 
         result["suggested_roles"] = suggested_roles
         return result
@@ -116,12 +116,12 @@ class RoleReminderDB(object):
                 insert into role_reminder 
                 (
                     guild_id, 
-                    reminder_channel,
+                    reminder_channel_id,
                     reminder_message, 
                     wait_time, 
-                    reminded_role
+                    reminded_role_id
                 )
-                values (?, ?, ?, ?, ?, ?);
+                values (?, ?, ?, ?, ?);
                 """,
                 (
                     guild.id,
@@ -244,7 +244,7 @@ class RoleReminderDB(object):
         """
         with self.conn:
             self.conn.execute(
-                "delete from guild_suggested_role where guild_id = ? and suggested_role = ?;",
+                "delete from guild_suggested_role where guild_id = ? and role_id = ?;",
                 (guild.id, suggested_role.id)
             )
 
