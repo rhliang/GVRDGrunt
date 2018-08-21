@@ -390,3 +390,36 @@ Clear the guild's entire list of suggested roles.
 
 ##### `.rolereminder`
 Ping users to remind them of the roles, and mark them as having been reminded.
+
+Raid FYIs
+---------
+
+This allows members to announce raids (ideally -- this may easily be abused) with a command in a chat channel.
+The FYI will be posted in a specified FYI channel.  All commands except `.fyi` and `.show_fyi_configuration`
+require `Administrator` privileges.
+
+##### `.configure_fyi [FYI emoji]` (or `activate_fyi` or `enable_fyi`)
+Configures the raid FYI functionality for this guild.  All this does is specify what emoji will be added to the
+`.fyi` command message to signify that the message has been "announced" in the FYI channel.
+
+##### `.disable_fyi` (or `deactivate_fyi`)
+Disables FYI functionality for this guild by removing the configuration information from the database.  Note
+that this does not remove the channel mappings, so if you disable and reenable the functionality, all the same
+mappings will still be in place.
+
+##### `.map_chat_to_fyi [chat channel] [FYI channel]` (or `mapchattofyi`)
+Configures FYI functionality for the specified chat channel; FYIs will be posted to the specified FYI channel.
+
+##### `.deregister_fyi_mapping [chat channel]`
+De-registers the FYI mapping for the specified chat channel; FYIs posted to this channel will be ignored.
+
+##### `.deregister_all_fyi_mappings`
+De-registers all FYI mappings for this guild.
+
+##### `.show_fyi_configuration`
+Show all FYI functionality configuration for this guild.  This does not require `Administrator` privileges, only 
+`Manage Nicknames`.
+
+##### `.fyi [fyi text]`
+This command is the actual FYI command.  Everything after `.fyi` will be posted to the corresponding FYI channel.
+Any user may use this command.
