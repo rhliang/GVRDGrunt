@@ -21,6 +21,8 @@ from bot.role_set_operations_cog import RoleSetOperationsCog
 from bot.purge_channels_cog import PurgeChannelsCog
 from bot.role_reminder_cog import RoleReminderCog
 from bot.role_reminder_db import RoleReminderDB
+from bot.raid_fyi_cog import RaidFYICog
+from bot.raid_fyi_db import RaidFYIDB
 
 __author__ = "Richard Liang"
 
@@ -45,6 +47,7 @@ def main():
     role_reaction_subscription_db = RoleReactionSubscriptionDB(settings["sqlite_db"])
     no_command_subscription_db = NoCommandSubscriptionDB(settings["sqlite_db"])
     role_reminder_db = RoleReminderDB(settings["sqlite_db"])
+    raid_fyi_db = RaidFYIDB(settings["sqlite_db"])
 
     logging_cog = GuildLoggingCog(gvrd_grunt, logging_db)
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))
@@ -56,6 +59,7 @@ def main():
     gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
     gvrd_grunt.add_cog(PurgeChannelsCog(gvrd_grunt))
     gvrd_grunt.add_cog(RoleReminderCog(gvrd_grunt, role_reminder_db, logging_cog=logging_cog))
+    gvrd_grunt.add_cog(RaidFYICog(gvrd_grunt, raid_fyi_db))
 
     # For testing only -- *do not install on a production bot!*
     # gvrd_grunt.add_cog(SpamCog())
