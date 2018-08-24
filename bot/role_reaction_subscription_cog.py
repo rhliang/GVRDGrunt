@@ -16,7 +16,8 @@ class RoleReactionSubscriptionCog():
         """\
         Channel: {}
         Subscription message: {}
-        Approve emoji: {} 
+        Subscribe emoji: {} 
+        Unsubscribe emoji: {} 
         Role: {}
         """
     )
@@ -46,7 +47,8 @@ class RoleReactionSubscriptionCog():
             role: discord.Role,
             channel: discord.TextChannel,
             subscription_message_id,
-            toggle_emoji
+            subscribe_emoji,
+            unsubscribe_emoji
     ):
         """
         Activate reaction-based role subscription.
@@ -55,19 +57,39 @@ class RoleReactionSubscriptionCog():
         :param role:
         :param channel:
         :param subscription_message_id:
-        :param toggle_emoji:
+        :param subscribe_emoji:
+        :param unsubscribe_emoji:
         :return:
         """
+        if subscribe_emoji == unsubscribe_emoji:
+            await ctx.message.channel.send(
+                f"{ctx.author.mention} Emoji used for subscribing and unsubscribing must be distinct."
+            )
+            return
+
         emoji_converter = EmojiConverter()
         try:
-            actual_emoji = await emoji_converter.convert(ctx, toggle_emoji)
+            actual_subscribe_emoji = await emoji_converter.convert(ctx, subscribe_emoji)
         except BadArgument:
-            actual_emoji = toggle_emoji
+            actual_subscribe_emoji = subscribe_emoji
 
-        self.db.configure_role_reaction_subscription(ctx.guild, channel, subscription_message_id, actual_emoji, role)
+        try:
+            actual_unsubscribe_emoji = await emoji_converter.convert(ctx, unsubscribe_emoji)
+        except BadArgument:
+            actual_unsubscribe_emoji = unsubscribe_emoji
+
+        self.db.configure_role_reaction_subscription(
+            ctx.guild,
+            channel,
+            subscription_message_id,
+            actual_subscribe_emoji,
+            actual_unsubscribe_emoji,
+            role
+        )
         message = await channel.get_message(subscription_message_id)
         try:
-            await message.add_reaction(actual_emoji)
+            await message.add_reaction(actual_subscribe_emoji)
+            await message.add_reaction(actual_unsubscribe_emoji)
         except discord.Forbidden:
             await ctx.message.channel.send(
                 f"{ctx.author.mention} Bot {ctx.guild.get_member(self.bot.user.id)} does not"
@@ -99,7 +121,8 @@ class RoleReactionSubscriptionCog():
             self.summary_str_template.format(
                 subscription_info["channel"],
                 subscription_info["subscription_message_id"],
-                subscription_info["toggle_emoji"],
+                subscription_info["subscribe_emoji"],
+                subscription_info["unsubscribe_emoji"],
                 subscription_info["role"]
             )
         )
@@ -129,7 +152,8 @@ class RoleReactionSubscriptionCog():
                 self.summary_str_template.format(
                     subscription_info["channel"],
                     subscription_info["subscription_message_id"],
-                    subscription_info["toggle_emoji"],
+                    subscription_info["subscribe_emoji"],
+                    subscription_info["unsubscribe_emoji"],
                     subscription_info["role"]
                 )
             )
@@ -156,13 +180,58 @@ class RoleReactionSubscriptionCog():
         self.db.remove_subscription_data(ctx.guild, role)
         message = await subscription_info["channel"].get_message(subscription_info["subscription_message_id"])
         try:
-            await message.remove_reaction(subscription_info["toggle_emoji"], ctx.guild.get_member(self.bot.user.id))
+            await message.remove_reaction(
+                subscription_info["subscribe_emoji"],
+                ctx.guild.get_member(self.bot.user.id)
+            )
         except discord.NotFound:
             pass
+
+        try:
+            await message.remove_reaction(
+                subscription_info["unsubscribe_emoji"],
+                ctx.guild.get_member(self.bot.user.id)
+            )
+        except discord.NotFound:
+            pass
+
         await ctx.message.channel.send(
             f"{ctx.author.mention} Reaction role assignment functionality "
             f"for the {role} role is disabled for this guild."
         )
+
+    @command(
+        help="Refresh the reactions on all subscription messages for this guild.",
+        aliases=["refresh_sub_reactions"]
+    )
+    @has_permissions(administrator=True)
+    async def refresh_subscription_reactions(self, ctx):
+        """
+        Refresh the subscribe/unsubscribe reactions for this guild.
+
+        :param ctx:
+        :return:
+        """
+        subscription_info_list = self.db.get_guild_subscription_info(ctx.guild)
+        if len(subscription_info_list) == 0:
+            await ctx.message.channel.send(f'{ctx.author.mention} No role subscription is configured.')
+            return
+
+        async with ctx.channel.typing():
+            for subscription_info in subscription_info_list:
+                message = await subscription_info["channel"].get_message(subscription_info["subscription_message_id"])
+                try:
+                    await message.add_reaction(subscription_info["subscribe_emoji"])
+                    await message.add_reaction(subscription_info["unsubscribe_emoji"])
+                except discord.Forbidden:
+                    await ctx.message.channel.send(
+                        f"{ctx.author.mention} Bot {ctx.guild.get_member(self.bot.user.id)} does not"
+                        f"have the appropriate permissions to add a reaction."
+                    )
+
+            await ctx.message.channel.send(
+                f"{ctx.author.mention} All subscribe/unsubscribe reactions have been refreshed."
+            )
 
     async def assign_role(self, member: discord.Member, role: discord.Role):
         """
@@ -203,19 +272,6 @@ class RoleReactionSubscriptionCog():
                 f"Role {role} was removed from {member} via reaction"
             )
 
-    async def toggle_role(self, member: discord.Member, role: discord.Role):
-        """
-        Remove the member from the given role.
-
-        :param member:
-        :param role:
-        :return:
-        """
-        if role in member.roles:
-            await self.remove_role(member, role)
-        else:
-            await self.assign_role(member, role)
-
     # Now build some listeners.
     async def reaction_clicked(self, payload):
         """
@@ -232,20 +288,26 @@ class RoleReactionSubscriptionCog():
         if subscription_info is None:
             return
 
-        # Do nothing if the reaction is not the appropriate reaction.
-        if isinstance(subscription_info["toggle_emoji"], discord.Emoji):
-            if not payload.emoji.is_custom_emoji():
-                return
-            elif payload.emoji.id != subscription_info["toggle_emoji"].id:
-                return
+        sub_emoji = subscription_info["subscribe_emoji"]
+        unsub_emoji = subscription_info["unsubscribe_emoji"]
+        action = None  # or "sub" or "unsub"
+        if payload.emoji.is_custom_emoji():
+            if isinstance(sub_emoji, discord.Emoji) and payload.emoji.id == sub_emoji.id:
+                action = "sub"
+            elif isinstance(unsub_emoji, discord.Emoji) and payload.emoji.id == unsub_emoji.id:
+                action = "unsub"
         else:
-            if payload.emoji.is_custom_emoji():
-                return
-            elif str(payload.emoji) != subscription_info["toggle_emoji"]:
-                return
+            if not isinstance(sub_emoji, discord.Emoji) and str(payload.emoji) == sub_emoji:
+                action = "sub"
+            elif not isinstance(unsub_emoji, discord.Emoji) and str(payload.emoji) == unsub_emoji:
+                action = "unsub"
 
-        adding_member = guild.get_member(payload.user_id)
-        await self.toggle_role(adding_member, subscription_info["role"])
+        clicking_member = guild.get_member(payload.user_id)
+        subscription_role = subscription_info["role"]
+        if action == "sub":
+            await self.assign_role(clicking_member, subscription_role)
+        elif action == "unsub":
+            await self.remove_role(clicking_member, subscription_role)
 
     async def on_raw_reaction_add(self, payload):
         """

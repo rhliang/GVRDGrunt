@@ -221,15 +221,15 @@ Role Reaction Subscription
 --------------------------
 
 This is based on the EX gating but simplified.  The bot watches certain messages for certain reactions (either
-added or removed), and assigns the reacting user a specified role.
+added or removed), and assigns/removes a specified role from the reacting user.
 
 ### Configuration
 
 This requires `Administrator` privileges except where otherwise specified.
 
-##### `activate_role_reaction_subscription [role] [channel] [message ID] [emoji]`
+##### `activate_role_reaction_subscription [role] [channel] [message ID] [subscribe emoji] [unsubscribe emoji]`
 Instructs the bot to watch the specified message (in the specified channel) for the adding/removing of the specified
-emoji as a reaction; assign/remove the specified role from the reacting member.
+emojis as a reaction; assign/remove the specified role from the reacting member.
 
 You may also use `start_react_sub` as a short form.
 

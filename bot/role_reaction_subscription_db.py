@@ -8,8 +8,10 @@ from bot.convert_using_guild import emoji_converter, role_converter
 #     guild_id,
 #     channel_id,
 #     subscription_message_id primary key,
-#     toggle_emoji,
-#     toggle_emoji_type,
+#     subscribe_emoji,
+#     subscribe_emoji_type,
+#     unsubscribe_emoji,
+#     unsubscribe_emoji_type,
 #     role_id
 # );
 class RoleReactionSubscriptionDB(object):
@@ -27,7 +29,9 @@ class RoleReactionSubscriptionDB(object):
 
         :param guild:
         :param subscription_info_tuple: a tuple containing
-            (channel ID that message is in, subscription message ID, toggle emoji -- either str or ID, role ID),
+            (channel ID that message is in, subscription message ID,
+            subscribe emoji -- either str or ID, unsubscribe emoji -- also either str or ID,
+            role ID),
         :return:
         """
         if subscription_info_tuple is None:
@@ -38,27 +42,30 @@ class RoleReactionSubscriptionDB(object):
                 [
                     "channel",
                     "subscription_message_id",
-                    "toggle_emoji",
+                    "subscribe_emoji",
+                    "unsubscribe_emoji",
                     "role",
                 ],
                 subscription_info_tuple
             )
         )
 
-        # Convert the approve emoji to the appropriate type if it's a custom emoji.
+        # Convert the subscribe/unsubscribe emoji to the appropriate type if it's a custom emoji.
         with self.conn:
             guild_info_cursor = self.conn.execute(
                 """
-                select toggle_emoji_type
+                select subscribe_emoji_type, unsubscribe_emoji_type
                 from role_reaction_subscription 
                 where guild_id = ?
                 and subscription_message_id = ?;
                 """,
                 (guild.id, result["subscription_message_id"])
             )
-            toggle_emoji_type = guild_info_cursor.fetchone()[0]
-        if toggle_emoji_type == "custom":
-            result["toggle_emoji"] = emoji_converter(guild, result["toggle_emoji"])
+            subscribe_emoji_type, unsubscribe_emoji_type = guild_info_cursor.fetchone()
+        if subscribe_emoji_type == "custom":
+            result["subscribe_emoji"] = emoji_converter(guild, result["subscribe_emoji"])
+        if unsubscribe_emoji_type == "custom":
+            result["unsubscribe_emoji"] = emoji_converter(guild, result["unsubscribe_emoji"])
         # Other conversions.
         result["role"] = role_converter(guild, result["role"])
         result["channel"] = guild.get_channel(result["channel"])
@@ -78,7 +85,8 @@ class RoleReactionSubscriptionDB(object):
                 select 
                     channel_id,
                     subscription_message_id, 
-                    toggle_emoji, 
+                    subscribe_emoji,
+                    unsubscribe_emoji, 
                     role_id
                 from role_reaction_subscription 
                 where guild_id = ?
@@ -91,7 +99,7 @@ class RoleReactionSubscriptionDB(object):
 
     def get_subscription_info_by_message_id(self, guild: discord.Guild, message_id):
         """
-        Return some raw guild information required for the role subscription.
+        Return some raw guild information required for the role subscription when searching by message ID.
 
         :param guild:
         :param message_id:
@@ -103,7 +111,8 @@ class RoleReactionSubscriptionDB(object):
                 select 
                     channel_id,
                     subscription_message_id, 
-                    toggle_emoji, 
+                    subscribe_emoji,
+                    unsubscribe_emoji,
                     role_id
                 from role_reaction_subscription 
                 where guild_id = ?
@@ -128,7 +137,8 @@ class RoleReactionSubscriptionDB(object):
                 select 
                     channel_id,
                     subscription_message_id, 
-                    toggle_emoji, 
+                    subscribe_emoji,
+                    unsubscribe_emoji, 
                     role_id
                 from role_reaction_subscription 
                 where guild_id = ?;
@@ -144,7 +154,8 @@ class RoleReactionSubscriptionDB(object):
             guild: discord.Guild,
             channel: discord.TextChannel,
             subscription_message_id,
-            toggle_emoji,
+            subscribe_emoji,
+            unsubscribe_emoji,
             role: discord.Role
     ):
         """
@@ -153,16 +164,23 @@ class RoleReactionSubscriptionDB(object):
         :param guild:
         :param channel:
         :param subscription_message_id:
-        :param toggle_emoji:
+        :param subscribe_emoji:
+        :param unsubscribe_emoji:
         :param role:
         :raises:
         :return:
         """
-        emoji_type = "normal"
-        emoji_stored_value = toggle_emoji
-        if isinstance(toggle_emoji, discord.Emoji):
-            emoji_type = "custom"
-            emoji_stored_value = toggle_emoji.id
+        subscribe_emoji_type = "normal"
+        subscribe_emoji_stored_value = subscribe_emoji
+        if isinstance(subscribe_emoji, discord.Emoji):
+            subscribe_emoji_type = "custom"
+            subscribe_emoji_stored_value = subscribe_emoji.id
+
+        unsubscribe_emoji_type = "normal"
+        unsubscribe_emoji_stored_value = unsubscribe_emoji
+        if isinstance(unsubscribe_emoji, discord.Emoji):
+            unsubscribe_emoji_type = "custom"
+            unsubscribe_emoji_stored_value = unsubscribe_emoji.id
 
         with self.conn:
             self.conn.execute(
@@ -172,18 +190,22 @@ class RoleReactionSubscriptionDB(object):
                     guild_id, 
                     channel_id,
                     subscription_message_id, 
-                    toggle_emoji, 
-                    toggle_emoji_type, 
+                    subscribe_emoji, 
+                    subscribe_emoji_type, 
+                    unsubscribe_emoji, 
+                    unsubscribe_emoji_type, 
                     role_id
                 )
-                values (?, ?, ?, ?, ?, ?);
+                values (?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     guild.id,
                     channel.id,
                     subscription_message_id,
-                    emoji_stored_value,
-                    emoji_type,
+                    subscribe_emoji_stored_value,
+                    subscribe_emoji_type,
+                    unsubscribe_emoji_stored_value,
+                    unsubscribe_emoji_type,
                     role.id
                 )
             )
