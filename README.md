@@ -247,6 +247,10 @@ Disable reaction-based role subscription for the specified role.
 
 You may also use `stop_react_sub` as a short form.
 
+##### `refresh_subscription_reactions`
+Re-add the subscribe and unsubscribe emoji reactions to all of the configured messages.  (If the bot has already
+added either emoji, then nothing happens for that emoji, so this is safe to call anytime.)
+
 No-Command Role Subscription
 ----------------------------
 
