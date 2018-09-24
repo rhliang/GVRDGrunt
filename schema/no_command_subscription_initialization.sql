@@ -5,7 +5,7 @@ create table no_command_subscription(
     instruction_message_id,
     wait_time,
     show_subscriptions_emoji,
-    show_subscriptions_emoji_type,
+    show_subscriptions_emoji_type
 );
 
 create table no_command_role(
