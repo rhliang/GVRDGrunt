@@ -2,6 +2,7 @@ import textwrap
 import discord
 import re
 from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
+from datetime import datetime
 
 __author__ = 'Richard Liang'
 
@@ -157,7 +158,10 @@ Channel mappings:
 
         # Get the clean content of the message.
         cleaned_content = ctx.message.clean_content
-        strip_command_regex = re.compile(".*?fyi +(.+)".format(self.bot.command_prefix), flags=re.IGNORECASE)
+        strip_command_regex = re.compile(
+            ".*?fyi +(.+)".format(self.bot.command_prefix),
+            flags=re.IGNORECASE | re.DOTALL
+        )
         try:
             stripped_clean_content_match = strip_command_regex.match(cleaned_content)
         except re.error:
@@ -171,5 +175,7 @@ Channel mappings:
             return
 
         fyi_channel = fyi_info["channel_mappings"][ctx.channel]
-        await fyi_channel.send(f"FYI from {ctx.author.mention}:\n{stripped_content}\n\u200b")
+        await fyi_channel.send(
+            f"FYI from {ctx.author.mention} at {datetime.now().strftime('%I:%M:%S%p')}:\n{stripped_content}\n\u200b"
+        )
         await ctx.message.add_reaction(fyi_info["fyi_emoji"])
