@@ -175,7 +175,10 @@ Channel mappings:
             return
 
         fyi_channel = fyi_info["channel_mappings"][ctx.channel]
-        await fyi_channel.send(
-            f"FYI from {ctx.author.mention} at {datetime.now().strftime('%I:%M:%S%p')}:\n{stripped_content}\n\u200b"
-        )
+        # await fyi_channel.send(
+        #     f"FYI from {ctx.author.mention} at {datetime.now().strftime('%I:%M:%S%p')}:\n{stripped_content}\n\u200b"
+        # )
+        await fyi_channel.send(f"FYI from {ctx.author.mention}:\n{stripped_content}")
+
         await ctx.message.add_reaction(fyi_info["fyi_emoji"])
+
