@@ -1,28 +1,28 @@
-import logging
-import asyncio
 import argparse
+import asyncio
 import json
+import logging
 
 from discord.ext import commands
 
-from bot.verification_cog import VerificationCog
-from bot.verification_db import VerificationDB
-from bot.guild_logging_cog import GuildLoggingCog
-from bot.guild_logging_db import GuildLoggingDB
+from bot.baconpatroll_cog import BaconpaTrollCog
 from bot.ex_gate_cog import EXGateCog
 from bot.ex_gate_db import EXGateDB
-from bot.role_reaction_subscription_cog import RoleReactionSubscriptionCog
-from bot.role_reaction_subscription_db import RoleReactionSubscriptionDB
-from bot.baconpatroll_cog import BaconpaTrollCog
+from bot.guild_logging_cog import GuildLoggingCog
+from bot.guild_logging_db import GuildLoggingDB
 from bot.no_command_subscription_cog import NoCommandSubscriptionCog
 from bot.no_command_subscription_db import NoCommandSubscriptionDB
-from bot.role_set_operations_cog import RoleSetOperationsCog
 # from bot.spam_cog import SpamCog
 from bot.purge_channels_cog import PurgeChannelsCog
+from bot.raid_fyi_cog import RaidFYICog
+from bot.role_reaction_subscription_cog import RoleReactionSubscriptionCog
+from bot.role_reaction_subscription_db import RoleReactionSubscriptionDB
 from bot.role_reminder_cog import RoleReminderCog
 from bot.role_reminder_db import RoleReminderDB
-from bot.raid_fyi_cog import RaidFYICog
-from bot.raid_fyi_db import RaidFYIDB
+from bot.role_set_operations_cog import RoleSetOperationsCog
+from bot.verification_cog import VerificationCog
+from bot.verification_db import VerificationDB
+from db_migration_scripts.sqlite_modules.raid_fyi_db import RaidFYIDB
 
 __author__ = "Richard Liang"
 
