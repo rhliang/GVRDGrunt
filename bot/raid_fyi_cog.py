@@ -11,21 +11,12 @@ class RaidFYICog():
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 
-    When the .fyi command is issued in a chat channel, the remainder of the message
-
+    When the .fyi command is issued in a chat channel, the remainder of the message is relayed to
+    a corresponding RSVP channel.
     """
-    summary_str_template = textwrap.dedent(
-        """\
-        Channel: {}
-        Subscription message: {}
-        Approve emoji: {} 
-        Role: {}
-        """
-    )
-
     def __init__(self, bot, db, logging_cog=None):
         self.bot = bot
-        self.db = db  # a RoleReactionSubscriptionDB or workalike
+        self.db = db  # a RaidFYIDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
 
     @command(
