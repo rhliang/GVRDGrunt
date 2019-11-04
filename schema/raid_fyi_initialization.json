@@ -1,0 +1,49 @@
+{
+  "TableName": "RaidFYI",
+  "KeySchema": [
+    {
+      "AttributeName": "guild_id",
+      "KeyType": "HASH"
+    },
+    {
+      "AttributeName": "config_channel_message",
+      "KeyType": "RANGE"
+    }
+  ],
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "guild_id",
+      "AttributeType": "N"
+    },
+    {
+      "AttributeName": "config_channel_message",
+      "AttributeType": "S"
+    },
+    {
+      "AttributeName": "timestamp",
+      "AttributeType": "S"
+    }
+  ],
+  "LocalSecondaryIndexes": [
+    {
+      "IndexName": "FYIsByTime",
+      "KeySchema": [
+        {
+          "AttributeName": "guild_id",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "timestamp",
+          "KeyType": "RANGE"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "KEYS_ONLY"
+      }
+    }
+  ],
+  "ProvisionedThroughput": {
+    "ReadCapacityUnits": 10,
+    "WriteCapacityUnits": 5
+  }
+}

@@ -22,7 +22,7 @@ from bot.role_reminder_db import RoleReminderDB
 from bot.role_set_operations_cog import RoleSetOperationsCog
 from bot.verification_cog import VerificationCog
 from bot.verification_db import VerificationDB
-from db_migration_scripts.sqlite_modules.raid_fyi_db import RaidFYIDB
+from db_migration_scripts.sqlite_modules.raid_fyi_db_sqlite import RaidFYIDB
 
 __author__ = "Richard Liang"
 

@@ -1,34 +1,65 @@
 #! /usr/bin/env python
 
 import json
+import sqlite3
 
-from sqlite_modules import raid_fyi_db as db
 
-
-def convert_to_dict(fyi_db):
+def get_all_fyi_configuration(conn):
     """
-    Convert a RaidFYIDB object's contents to a dictionary.
-    :param fyi_db:
+    Return all raid FYI configuration in a dictionary.
+
+    :param conn:
     :return:
     """
-    # Get all guild IDs in the database.
-    all_guild_configurations = []
-    with fyi_db.conn:
-        guild_info_cursor = fyi_db.conn.execute(
+    all_configuration = []
+    with conn:
+        guild_info_cursor = conn.execute(
             """
-            select 
-                guild_id
+            select
+                guild_id, 
+                fyi_emoji,
+                fyi_emoji_type
             from raid_fyi;
             """
         )
 
-        for guild_id in guild_info_cursor:
-            guild_fyi_config = fyi_db.get_fyi_info(guild_id)
-            guild_fyi_config["guild_id"] = guild_id
-            all_guild_configurations.append(guild_fyi_config)
+        for guild_id, fyi_emoji, fyi_emoji_type in guild_info_cursor:
+            guild_config = {
+                "guild_id": guild_id,
+                "config_channel_message": "config",
+                "fyi_emoji": fyi_emoji,
+                "fyi_emoji_type": fyi_emoji_type,
+                "enhanced": False,
+                "rsvp_emoji": None,
+                "rsvp_emoji_type": None,
+                "timezone": "America/Vancouver"
+            }
 
-    return all_guild_configurations
+            # Retrieve all channel mappings for this guild.
+            guild_channel_mappings = []
+            channel_mapping_cursor = conn.execute(
+                """
+                select
+                    chat_channel_id,
+                    fyi_channel_id
+                from raid_fyi_channel_mapping
+                where guild_id = ?;
+                """,
+                (guild_id,)
+            )
 
+            for chat_channel_id, fyi_channel_id in channel_mapping_cursor:
+                channel_mapping_config = {
+                    "guild_id": guild_id,
+                    "config_channel_message": "chatchannel{}".format(chat_channel_id),
+                    "relay_channel": fyi_channel_id
+                }
+                guild_channel_mappings.append(channel_mapping_config)
+
+            all_configuration.append(guild_config)
+            all_configuration.extend(guild_channel_mappings)
+
+    return all_configuration
 
 def main():
     import argparse
@@ -36,12 +67,11 @@ def main():
     parser = argparse.ArgumentParser(description="Extract all FYI configuration from a GruntBot DB as JSON.")
     parser.add_argument("db", help="Path to the SQLite DB to extract from.")
     parser.add_argument("--output", default="out.json", help="")
-
     args = parser.parse_args()
 
-    fyi_db = db.RaidFYIDB(args.db)
+    conn = sqlite3.connect(args.db)
     with open(args.output, "w") as f:
-        f.write(json.dumps(convert_to_dict(fyi_db)))
+        json.dump(get_all_fyi_configuration(conn), f, indent=4)
 
 
 if __name__ == "__main__":
