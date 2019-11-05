@@ -22,7 +22,7 @@ from bot.role_reminder_db import RoleReminderDB
 from bot.role_set_operations_cog import RoleSetOperationsCog
 from bot.verification_cog import VerificationCog
 from bot.verification_db import VerificationDB
-from db_migration_scripts.sqlite_modules.raid_fyi_db_sqlite import RaidFYIDB
+from bot.raid_fyi_db import RaidFYIDB
 
 __author__ = "Richard Liang"
 
@@ -47,7 +47,13 @@ def main():
     role_reaction_subscription_db = RoleReactionSubscriptionDB(settings["sqlite_db"])
     no_command_subscription_db = NoCommandSubscriptionDB(settings["sqlite_db"])
     role_reminder_db = RoleReminderDB(settings["sqlite_db"])
-    raid_fyi_db = RaidFYIDB(settings["sqlite_db"])
+
+    # This database has been migrated to DynamoDB.
+    raid_fyi_db = RaidFYIDB(
+        endpoint_url=settings["endpoint_url"],
+        aws_access_key_id=settings["aws_access_key_id"],
+        aws_secret_access_key=settings["aws_access_key_id"]
+    )
 
     logging_cog = GuildLoggingCog(gvrd_grunt, logging_db)
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))

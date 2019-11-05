@@ -2,5 +2,8 @@
   "token": "[enter your token here]",
   "sqlite_db": "[absolute path to SQLite database file]",
   "command_prefix": ".",
-  "log_file": "output.log"
+  "log_file": "output.log",
+  "endpoint_url": "http://localhost:8000",
+  "aws_access_key_id": null,
+  "aws_secret_access_key": null
 }

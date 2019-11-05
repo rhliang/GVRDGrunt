@@ -25,14 +25,14 @@ def get_all_fyi_configuration(conn):
 
         for guild_id, fyi_emoji, fyi_emoji_type in guild_info_cursor:
             guild_config = {
-                "guild_id": guild_id,
-                "config_channel_message": "config",
-                "fyi_emoji": fyi_emoji,
-                "fyi_emoji_type": fyi_emoji_type,
-                "enhanced": False,
-                "rsvp_emoji": None,
-                "rsvp_emoji_type": None,
-                "timezone": "America/Vancouver"
+                "guild_id": {"N": str(guild_id)},
+                "config_channel_message": {"S": "config"},
+                "fyi_emoji": {"S": fyi_emoji},
+                "fyi_emoji_type": {"S": fyi_emoji_type},
+                "enhanced": {"BOOL": False},
+                "rsvp_emoji": {"NULL": True},
+                "rsvp_emoji_type": {"NULL": True},
+                "timezone": {"S": "America/Vancouver"}
             }
 
             # Retrieve all channel mappings for this guild.
@@ -50,16 +50,16 @@ def get_all_fyi_configuration(conn):
 
             for chat_channel_id, fyi_channel_id in channel_mapping_cursor:
                 channel_mapping_config = {
-                    "guild_id": guild_id,
-                    "config_channel_message": "chatchannel{}".format(chat_channel_id),
-                    "relay_channel": fyi_channel_id
+                    "guild_id": {"N": str(guild_id)},
+                    "config_channel_message": {"S": "chatchannel{}".format(chat_channel_id)},
+                    "relay_channel": {"N": str(fyi_channel_id)}
                 }
                 guild_channel_mappings.append(channel_mapping_config)
 
             all_configuration.append(guild_config)
             all_configuration.extend(guild_channel_mappings)
 
-    return all_configuration
+    return {"RaidFYI": [{"PutRequest": {"Item": x}} for x in all_configuration]}
 
 def main():
     import argparse

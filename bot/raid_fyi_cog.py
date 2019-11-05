@@ -91,7 +91,7 @@ class RaidFYICog():
 
     @command(
         help="Deactivate raid FYI functionality.",
-        aliases=["deactivate_enhanced_fyi", "disable_enhanced_fyi"]
+        aliases=["deactivate_enhanced_fyi"]
     )
     @has_permissions(administrator=True)
     async def disable_enhanced_fyi(self, ctx):
@@ -168,6 +168,7 @@ class RaidFYICog():
         summary_message = f"""\
 {ctx.author.mention}
 FYI emoji: {fyi_info["fyi_emoji"]}
+Timezone: {fyi_info["timezone"]}
 Enhanced FYI functionality: {fyi_info["enhanced"]}
 RSVP emoji: {fyi_info["rsvp_emoji"] if fyi_info["enhanced"] else "(None)"}
 Channel mappings:
@@ -177,13 +178,11 @@ Channel mappings:
         await ctx.channel.send(summary_message)
 
     @staticmethod
-    def build_relay_message(
+    def build_relay_message_text(
             creator,
             timestamp,
             tz,
-            enhanced: bool,
-            message_content,
-            interested
+            message_content
     ):
         """
         Build a relay message for an FYI.
@@ -191,28 +190,38 @@ Channel mappings:
         :param creator:
         :param timestamp: an aware datetime object in UTC time
         :param tz: a tzinfo object
-        :param enhanced:
         :param message_content:
+        :return:
+        """
+        relay_message_template = "**FYI from {creator} at {creation_time}:**\n{content}"
+        guild_localized_timestamp = timestamp.astimezone(tz)
+        relay_message = relay_message_template.format(
+            creator=creator.mention,
+            creation_time=guild_localized_timestamp.strftime("%I:%M%p on %Y %b %d"),
+            content=message_content
+        )
+        return relay_message
+
+    @staticmethod
+    def build_interested_users_list_string(interested):
+        """
+        Build a string representation of the interested users.
         :param interested: a dictionary mapping member -> [reactions used by the user]
         :return:
         """
-        relay_message_template = "FYI from {creator} at {creation time}:\n{content}"
-        guild_localized_timestamp = timestamp.astimezone(tz)
+        sorted_interested = sorted(interested.keys(), key=attrgetter("display_name"))
+        user_entries = []
+        for person in sorted_interested:
+            person_reaction_strings = []
+            for emoji in interested[person]:
+                if isinstance(emoji, str):
+                    person_reaction_strings.append(emoji)
+                else:  # this is a custom emoji
+                    person_reaction_strings.append(f"<:{emoji.name}:{emoji.id}>")
+            user_entries.append(f"{person.mention} ({', '.join(person_reaction_strings)})")
 
-        relay_message = relay_message_template.format(
-            creator=creator.mention,
-            creation_time=guild_localized_timestamp.strftime("%Y %b %d %I:%M%p"),
-            content=message_content
-        )
-        if enhanced and len(interested) != 0:
-            # List all interested users, alphabetizing on their display name.
-            sorted_interested = sorted(interested.keys(), key=attrgetter("display_name"))
-            interested_str = "Interested users:"
-            for interested_user in sorted_interested:
-                interested_str += f"\n{interested_user.display_name} ({interested[interested_user].join(', ')})"
-            relay_message += interested_str
-
-        return relay_message
+        interested_str = "\n".join(user_entries)
+        return interested_str
 
     @staticmethod
     def strip_fyi_message_content(message):
@@ -262,13 +271,11 @@ Channel mappings:
 
         timestamp = datetime.now(timezone.utc)
         relay_channel = fyi_info["channel_mappings"][ctx.channel]
-        relay_message_text = self.build_relay_message(
+        relay_message_text = self.build_relay_message_text(
             ctx.author,
             timestamp,
-            timezone(fyi_info["timezone"]),
-            fyi_info["enhanced"],
-            stripped_content,
-            interested=[]
+            fyi_info["timezone"],
+            stripped_content
         )
         relay_message = await relay_channel.send(relay_message_text)
 
@@ -287,7 +294,6 @@ Channel mappings:
             await ctx.message.add_reaction(fyi_info["rsvp_emoji"])
             await relay_message.add_reaction(fyi_info["rsvp_emoji"])
 
-    @staticmethod
     async def get_all_reactors(self, messages):
         """
         Compile a dictionary of all users/members who reacted to the specified messages.
@@ -298,10 +304,14 @@ Channel mappings:
         for message in messages:
             for reaction in message.reactions:
                 async for user in reaction.users():
+                    if user == self.bot.user:
+                        continue
                     reactors[user].add(reaction.emoji)
         return reactors
 
-    async def update_fyi_interested(self, payload: discord.RawReactionActionEvent):
+    RELAY_MESSAGE_TEMPLATE = "{relay_message_text}\n**Interested:**\n{interested_users_str}"
+
+    async def update_fyi_interested(self, payload):
         """
         Updates an FYI when a reaction is clicked.
 
@@ -322,16 +332,21 @@ Channel mappings:
         command_message = await chat_channel.get_message(command_message_id)
         relay_message = await relay_channel.get_message(relay_message_id)
 
-        reactors = await self.get_all_reactors([command_message, relay_message])
-        relay_message_text = self.build_relay_message(
+        relay_message_text = self.build_relay_message_text(
             creator,
             timestamp,
             guild_fyi_info["timezone"],
-            True,
-            self.strip_fyi_message_content(command_message),
-            interested=reactors
+            self.strip_fyi_message_content(command_message)
         )
-        await relay_message.edit(content=relay_message_text)
+        full_message_text = relay_message_text
+        reactors = await self.get_all_reactors([command_message, relay_message])
+        if len(reactors) > 0:
+            interested_users_str = self.build_interested_users_list_string(reactors)
+            full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
+                relay_message_text=relay_message_text,
+                interested_users_str=interested_users_str
+            )
+        await relay_message.edit(content=full_message_text)
 
     async def on_raw_reaction_add(self, payload):
         await self.update_fyi_interested(payload)
@@ -339,7 +354,7 @@ Channel mappings:
     async def on_raw_reaction_remove(self, payload):
         await self.update_fyi_interested(payload)
 
-    async def update_fyi_edited(self, payload: discord.RawMessageUpdateEvent):
+    async def update_fyi_edited(self, payload):
         """
         Updates an FYI when the original is edited.
 
@@ -347,7 +362,9 @@ Channel mappings:
         :return:
         """
         # The payload has a message_id and a channel_id, but not necessarily a guild ID!
-        edited_message_channel = self.bot.get_channel(payload.channel_id)
+        # Note: the payload won't have a channel_id until we move to v1.3.0 of discord.py.
+        # edited_message_channel = self.bot.get_channel(payload.channel_id)
+        edited_message_channel = self.bot.get_channel(int(payload.data["channel_id"]))
         if edited_message_channel is None:
             return
         guild = edited_message_channel.guild
@@ -356,42 +373,53 @@ Channel mappings:
 
         guild_fyi_info = self.db.get_fyi_info(guild)
         fyi_info = self.db.get_fyi(guild, edited_message_channel, payload.message_id)
-        # Do nothing if this isn't an active FYI.
-        if guild_fyi_info is None or not guild_fyi_info["enhanced"] or fyi_info is None:
+        # Do nothing if this isn't an active FYI, or if this is the relay message.
+        if guild_fyi_info is None or fyi_info is None:
             return
 
         # Unpack fyi_info.
         chat_channel, command_message_id, relay_channel, relay_message_id, timestamp, creator = fyi_info
+        # Do nothing if this is the relay message (as this is edited by the bot).
+        if edited_message_channel == relay_channel:
+            return
+
         command_message = await chat_channel.get_message(command_message_id)
         relay_message = await relay_channel.get_message(relay_message_id)
 
-        reactors = []
-        if guild_fyi_info["enhanced"]:
-            reactors = await self.get_all_reactors([command_message, relay_message])
-        relay_message_text = self.build_relay_message(
+        relay_message_text = self.build_relay_message_text(
             creator,
             timestamp,
             guild_fyi_info["timezone"],
-            guild_fyi_info["enhanced"],
-            self.strip_fyi_message_content(command_message),
-            interested=reactors
+            self.strip_fyi_message_content(command_message)
         )
-        await relay_message.edit(content=relay_message_text)
+        full_message_text = relay_message_text
+        reactors = []
+        if guild_fyi_info["enhanced"]:
+            reactors = await self.get_all_reactors([command_message, relay_message])
+        if len(reactors) > 0:
+            interested_users_str = self.build_interested_users_list_string(reactors)
+            full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
+                relay_message_text=relay_message_text,
+                interested_users_str=interested_users_str
+            )
+        await relay_message.edit(content=full_message_text)
 
         if guild_fyi_info["enhanced"]:
-            # Ping all reactors.
-            reactors_str = " ".join([x.mention for x in reactors])
-            # Inset the relay message text.
-            inset_relay_message_text = "> " + relay_message_text.replace("\n", "\n> ")
-            reactor_ping = (f"{reactors_str} the FYI you were interested in has been updated "
-                            f"by {creator.mention}:\n\n"
-                            f"{inset_relay_message_text}")
-            await command_message.channel.send(reactor_ping)
+            # Ping all interested.
+            audience = [x for x in reactors if x != creator]
+            if len(audience) != 0:
+                audience_str = " ".join([x.mention for x in audience])
+                # Inset the relay message text.
+                inset_relay_message_text = "> " + relay_message_text.replace("\n", "\n> ")
+                reactor_ping = (f"{audience_str} the FYI you were interested in has been updated "
+                                f"by {creator.mention}:\n"
+                                f"{inset_relay_message_text}")
+                await command_message.channel.send(reactor_ping)
 
     async def on_raw_message_edit(self, payload):
         await self.update_fyi_edited(payload)
 
-    async def delete_fyi(self, payload: discord.RawMessageDeleteEvent):
+    async def delete_fyi(self, payload):
         """
         Delete an FYI (this removes it from the database also).
 
@@ -400,7 +428,7 @@ Channel mappings:
         """
         guild = self.bot.get_guild(payload.guild_id)
         channel = guild.get_channel(payload.channel_id)
-        fyi_info = await self.db.get_fyi(guild, channel, payload.message_id)
+        fyi_info = self.db.get_fyi(guild, channel, payload.message_id)
         if fyi_info is None:
             return
 

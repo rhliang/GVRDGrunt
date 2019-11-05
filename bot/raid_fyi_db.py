@@ -82,7 +82,8 @@ class RaidFYIDB(object):
 
         channel_mappings = {}
         for chat_channel_config in raw_channel_mappings:
-            chat_channel_id = int(re.match(chat_channel_pattern, chat_channel_config["config_channel_message"]))
+            chat_channel_id = int(re.match(chat_channel_pattern,
+                                           chat_channel_config["config_channel_message"]).group(1))
             chat_channel = guild.get_channel(chat_channel_id)
             relay_channel = guild.get_channel(chat_channel_config["relay_channel"])
             channel_mappings[chat_channel] = relay_channel
