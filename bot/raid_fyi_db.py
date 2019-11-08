@@ -5,6 +5,7 @@ import re
 import dateutil
 import pytz
 
+from bot.utils import emoji_to_db
 from bot.convert_using_guild import emoji_converter
 
 
@@ -14,8 +15,11 @@ from bot.convert_using_guild import emoji_converter
 # - fyi_emoji (string or emoji ID)
 # - fyi_emoji_type ("normal" or "custom")
 # - enhanced (Boolean)
+# - relay_to_chat (Boolean)
 # - rsvp_emoji (string or emoji ID)
 # - rsvp_emoji_type ("normal" or "custom")
+# - cancelled_emoji (string or emoji ID)
+# - cancelled_emoji_type ("normal" or "custom")
 # - timezone (in a form that pytz recognizes, e.g. "America/Vancouver"
 #
 # (guild[guild id], chatchannel[channel id]):
@@ -25,10 +29,15 @@ from bot.convert_using_guild import emoji_converter
 # If this message is the original:
 # - timestamp
 # - creator
-# - relay_messages (a list of (channel ID, message ID) pair pointing at the relay messages -- only on original)
+# - relay_message (a (channel ID, message ID) pair pointing at the relay message in the relay channel)
+# - chat_relay_message (a (channel ID, message ID) pair pointing at the relay message in the chat channel, or None)
 # - time (datetime of the command -- only on original)
+# - edit_history (all of the edits made to this original post)
+# - interested (a list of member IDs, denoting all who are interested)
+
 # If this message is a relay:
 # - command_message (a (channel ID, message ID) pair pointing to the original command message -- only on relays)
+# - chat_or_relay (either "chat" or "relay", denotes which channel this one was posted in)
 
 chat_channel_pattern = "chatchannel(.+)"
 channel_message_template = "channel{}#message{}"
@@ -72,6 +81,9 @@ class RaidFYIDB(object):
             if result["rsvp_emoji_type"] == "custom":
                 result["rsvp_emoji"] = emoji_converter(guild, result["rsvp_emoji"])
             del result["rsvp_emoji_type"]
+            if result["cancelled_emoji_type"] == "custom":
+                result["cancelled_emoji"] = emoji_converter(guild, result["cancelled_emoji"])
+            del result["cancelled_emoji_type"]
 
         # Get all channel mappings.
         response = self.table.query(
@@ -106,12 +118,7 @@ class RaidFYIDB(object):
         :raises:
         :return:
         """
-        emoji_type = "normal"
-        emoji_stored_value = fyi_emoji
-        if isinstance(fyi_emoji, discord.Emoji):
-            emoji_type = "custom"
-            emoji_stored_value = fyi_emoji.id
-
+        emoji_type, emoji_stored_value = emoji_to_db(fyi_emoji)
         # Sanity check: convert the timezone string to an actual timezone.
         # We don't catch the exception; we'll let it go upward.
         pytz.timezone(tz_string)
@@ -123,6 +130,7 @@ class RaidFYIDB(object):
                 "fyi_emoji": emoji_stored_value,
                 "fyi_emoji_type": emoji_type,
                 "enhanced": False,
+                "relay_to_chat": None,
                 "rsvp_emoji": None,
                 "rsvp_emoji_type": None,
                 "timezone": tz_string
@@ -143,30 +151,36 @@ class RaidFYIDB(object):
             }
         )
 
-    def activate_enhanced_fyi(self, guild: discord.Guild, rsvp_emoji):
+    def activate_enhanced_fyi(self, guild: discord.Guild, rsvp_emoji, cancelled_emoji, relay_to_chat: bool):
         """
         Enable enhanced FYI functionality for the guild.
 
         :param guild:
         :param rsvp_emoji:
+        :param cancelled_emoji:
+        :param relay_to_chat:
         :return:
         """
-        emoji_type = "normal"
-        emoji_stored_value = rsvp_emoji
-        if isinstance(rsvp_emoji, discord.Emoji):
-            emoji_type = "custom"
-            emoji_stored_value = rsvp_emoji.id
-
+        rsvp_emoji_type, rsvp_emoji_stored_value = emoji_to_db(rsvp_emoji)
+        cancelled_emoji_type, cancelled_emoji_stored_value = emoji_to_db(cancelled_emoji)
         self.table.update_item(
             Key={
                 "guild_id": guild.id,
                 "config_channel_message": "config"
             },
-            UpdateExpression="SET enhanced = :enhanced, rsvp_emoji = :rsvp_emoji, rsvp_emoji_type = :rsvp_emoji_type",
+            UpdateExpression="SET enhanced = :enhanced, "
+                             "rsvp_emoji = :rsvp_emoji, "
+                             "rsvp_emoji_type = :rsvp_emoji_type, "
+                             "cancelled_emoji = :cancelled_emoji, "
+                             "cancelled_emoji_type = :cancelled_emoji_type, "
+                             "relay_to_chat = :relay_to_chat",
             ExpressionAttributeValues={
                 ":enhanced": True,
-                ":rsvp_emoji": emoji_stored_value,
-                ":rsvp_emoji_type": emoji_type
+                ":rsvp_emoji": rsvp_emoji_stored_value,
+                ":rsvp_emoji_type": rsvp_emoji_type,
+                ":cancelled_emoji": cancelled_emoji_stored_value,
+                ":cancelled_emoji_type": cancelled_emoji_type,
+                ":relay_to_chat": relay_to_chat
             }
         )
 
@@ -182,11 +196,15 @@ class RaidFYIDB(object):
                 "guild_id": guild.id,
                 "config_channel_message": "config"
             },
-            UpdateExpression="SET enhanced = :enhanced, rsvp_emoji = :rsvp_emoji, rsvp_emoji_type = :rsvp_emoji_type",
+            UpdateExpression="SET enhanced = :enhanced, "
+                             "rsvp_emoji = :rsvp_emoji, "
+                             "rsvp_emoji_type = :rsvp_emoji_type, "
+                             "relay_to_chat = :relay_to_chat",
             ExpressionAttributeValues={
                 ":enhanced": False,
                 ":rsvp_emoji": None,
-                ":rsvp_emoji_type": None
+                ":rsvp_emoji_type": None,
+                ":relay_to_chat": None
             }
         )
 
@@ -252,22 +270,26 @@ class RaidFYIDB(object):
             self,
             guild: discord.Guild,
             creator: discord.Member,
+            fyi_text,
             timestamp,
             chat_channel: discord.TextChannel,
             command_message_id,
             relay_channel: discord.TextChannel,
-            relay_message_id
+            relay_message_id,
+            chat_relay_message_id
     ):
         """
         Create records for an FYI.
 
         :param guild:
         :param creator:
+        :param fyi_text:
         :param timestamp: a Python datetime object showing the creation time **in UTC**
         :param chat_channel:
         :param command_message_id:
         :param relay_channel:
         :param relay_message_id:
+        :param chat_relay_message_id:
         :return:
         """
         with self.table.batch_writer() as batch:
@@ -278,7 +300,10 @@ class RaidFYIDB(object):
                     "creator_id": creator.id,
                     "timestamp": timestamp.isoformat(),
                     "relay_channel_id": relay_channel.id,
-                    "relay_message_id": relay_message_id
+                    "relay_message_id": relay_message_id,
+                    "chat_relay_message_id": chat_relay_message_id,
+                    "edit_history": [fyi_text],
+                    "interested": []
                 }
             )
             batch.put_item(
@@ -286,9 +311,21 @@ class RaidFYIDB(object):
                     "guild_id": guild.id,
                     "config_channel_message": channel_message_template.format(relay_channel.id, relay_message_id),
                     "chat_channel_id": chat_channel.id,
-                    "command_message_id": command_message_id
+                    "command_message_id": command_message_id,
+                    "relay_or_chat": "relay"
                 }
             )
+            if chat_relay_message_id is not None:
+                batch.put_item(
+                    Item={
+                        "guild_id": guild.id,
+                        "config_channel_message": channel_message_template.format(chat_channel.id,
+                                                                                  chat_relay_message_id),
+                        "chat_channel_id": chat_channel.id,
+                        "command_message_id": command_message_id,
+                        "relay_or_chat": "chat"
+                    }
+                )
 
     def get_fyi(
             self,
@@ -299,7 +336,7 @@ class RaidFYIDB(object):
         """
         Retrieve the information about this FYI based on the given channel and message ID.
 
-        These may be either the original command message or the relay message.
+        These may be either the original command message or (either of) the relay message(s).
 
         :param guild:
         :param channel:
@@ -342,8 +379,58 @@ class RaidFYIDB(object):
 
         # command_message = await chat_channel.get_message(command_message_id)
         # relay_message = await relay_channel.get_message(relay_message_id)
-        # return command_message, relay_message, timestamp, creator
-        return chat_channel, command_message_id, relay_channel, relay_message_id, timestamp, creator
+        return {
+            "chat_channel": chat_channel,
+            "command_message_id": command_message_id,
+            "relay_channel": relay_channel,
+            "relay_message_id": relay_message_id,
+            "chat_relay_message_id": command_message_result["chat_relay_message_id"],
+            "timestamp": timestamp,
+            "creator": creator,
+            "edit_history": command_message_result["edit_history"],
+            "interested": command_message_result["interested"]
+        }
+
+    def update_fyi(
+            self,
+            guild: discord.Guild,
+            channel: discord.TextChannel,
+            message_id,
+            new_fyi_text,
+            new_interested
+    ):
+        """
+        Update this FYI based on the given channel and message ID.
+
+        This message refers to the original (*not* (either of) the relay(s)).
+
+        :param guild:
+        :param channel:
+        :param message_id:
+        :param new_fyi_text:
+        :param new_interested:
+        :return:
+        """
+        # Retrieve the existing record to get at the edit history.
+        fyi_prior_to_update = self.get_fyi(guild, channel, message_id)
+        if fyi_prior_to_update is None:
+            raise ValueError("Could not find an FYI to update with guild {}, channel {}, message ID {}")
+        updated_edit_history = fyi_prior_to_update["edit_history"]
+        if updated_edit_history[-1] != new_fyi_text:
+            updated_edit_history.append(new_fyi_text)
+
+        self.table.update_item(
+            Key={
+                "guild_id": guild.id,
+                "config_channel_message": channel_message_template.format(channel.id, message_id)
+            },
+            UpdateExpression="SET edit_history = :edit_history, "
+                             "interested = :interested",
+            ExpressionAttributeValues={
+                ":edit_history": updated_edit_history,
+                ":interested": new_interested
+            }
+        )
 
     def delete_fyi(
             self,
@@ -361,15 +448,9 @@ class RaidFYIDB(object):
         :param message_id:
         :return:
         """
-        response = self.table.get_item(
-            Key={
-                "guild_id": guild.id,
-                "config_channel_message": channel_message_template.format(channel.id, message_id)
-            }
-        )
-        result = response.get("Item")
+        result = self.get_fyi(guild, channel, message_id)
         if result is None:
-            return
+            raise ValueError("Could not find an FYI to delete with guild {}, channel {}, message ID {}")
 
         # Check if this is the command or the relay.
         if "creator_id" in result:
@@ -377,11 +458,16 @@ class RaidFYIDB(object):
             command_message_id = message_id
             relay_channel = guild.get_channel(result["relay_channel_id"])
             relay_message_id = result["relay_message_id"]
+            chat_relay_message_id = result["chat_relay_message_id"]
         else:
             relay_channel = channel
             relay_message_id = message_id
             chat_channel = guild.get_channel(result["chat_channel_id"])
             command_message_id = result["command_message_id"]
+            command_message_result = self.get_fyi(guild, chat_channel, command_message_id)
+            if result is None:
+                raise ValueError("Could not find the original FYI attached to guild {}, channel {}, message ID {}")
+            chat_relay_message_id = command_message_result["chat_relay_message_id"]
 
         with self.table.batch_writer() as batch:
             batch.delete_item(
@@ -396,6 +482,14 @@ class RaidFYIDB(object):
                     "config_channel_message": channel_message_template.format(relay_channel.id, relay_message_id)
                 }
             )
+            if chat_relay_message_id is not None:
+                batch.delete_item(
+                    Key={
+                        "guild_id": guild.id,
+                        "config_channel_message": channel_message_template.format(relay_channel.id,
+                                                                                  chat_relay_message_id)
+                    }
+                )
 
     def delete_fyis_older_than(self, guild: discord.Guild, timestamp):
         """

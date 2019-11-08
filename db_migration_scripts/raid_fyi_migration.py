@@ -30,8 +30,11 @@ def get_all_fyi_configuration(conn):
                 "fyi_emoji": {"S": fyi_emoji},
                 "fyi_emoji_type": {"S": fyi_emoji_type},
                 "enhanced": {"BOOL": False},
+                "relay_to_chat": {"BOOL": False},
                 "rsvp_emoji": {"NULL": True},
                 "rsvp_emoji_type": {"NULL": True},
+                "cancelled_emoji": {"NULL": True},
+                "cancelled_emoji_type": {"NULL": True},
                 "timezone": {"S": "America/Vancouver"}
             }
 
