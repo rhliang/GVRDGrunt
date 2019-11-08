@@ -452,9 +452,6 @@ Channel mappings:
         if fyi_info is None:
             return
 
-        # Unpack fyi_info.
-        # chat_channel, command_message_id, relay_channel, relay_message_id, timestamp, creator = fyi_info
-
         command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
         relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
         chat_relay_message = None
