@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 __author__ = 'Richard Liang'
 
 
-class RaidFYICog():
+class RaidFYICog(object):
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 
@@ -106,6 +106,26 @@ class RaidFYICog():
         self.db.deactivate_enhanced_fyi(ctx.guild)
         await ctx.channel.send(f"{ctx.author.mention} Raid FYI functionality is now disabled.")
 
+    async def map_chat_to_fyi_helper(
+            self,
+            guild,
+            commander: discord.Member,
+            command_channel: discord.TextChannel,
+            chat_channel: discord.TextChannel,
+            fyi_channel: discord.TextChannel
+    ):
+        """
+        Helper that maps a chat channel to an FYI channel.
+        :param guild:
+        :param commander:
+        :param command_channel:
+        :param chat_channel:
+        :param fyi_channel:
+        :return:
+        """
+        self.db.register_fyi_channel_mapping(guild, chat_channel, fyi_channel)
+        await command_channel.send(f"{commander.mention} FYIs from {chat_channel} will be posted in {fyi_channel}.")
+
     @command(help="Map a chat channel to an FYI channel.", aliases=["mapchattofyi"])
     @has_permissions(administrator=True)
     async def map_chat_to_fyi(self, ctx, chat_channel: discord.TextChannel, fyi_channel: discord.TextChannel):
@@ -117,8 +137,40 @@ class RaidFYICog():
         :param fyi_channel:
         :return:
         """
-        self.db.register_fyi_channel_mapping(ctx.guild, chat_channel, fyi_channel)
-        await ctx.channel.send(f"{ctx.author.mention} FYIs from {chat_channel} will be posted in {fyi_channel}.")
+        await self.map_chat_to_fyi_helper(ctx.guild, ctx.author, ctx.channel, chat_channel, fyi_channel)
+
+    @command(help="Map a category to an FYI channel.", aliases=["mapcategorytofyi"])
+    @has_permissions(administrator=True)
+    async def map_category_to_fyi(self, ctx, category: discord.CategoryChannel, fyi_channel: discord.TextChannel):
+        """
+        Create a mapping from a category to an FYI channel.
+
+        :param ctx:
+        :param category:
+        :param fyi_channel:
+        :return:
+        """
+        await ctx.channel.send(f"{ctx.author.mention} FYIs in all channels in {category} "
+                               f"will be posted in {fyi_channel}.")
+        self.db.register_fyi_category(ctx.guild, category, fyi_channel)
+        for channel in category.channels:
+            await self.map_chat_to_fyi_helper(ctx.guild, ctx.author, ctx.channel, channel, fyi_channel)
+
+    async def on_guild_channel_create(self, channel: discord.TextChannel):
+        """
+        If this channel belongs to a mapped category, map it to the category's FYI channel.
+        :param channel:
+        :return:
+        """
+        category_mapping_info = self.db.get_fyi_category(channel.category)
+        if category_mapping_info is None:
+            return
+        # This channel belongs to a mapped category, so we configure its FYI mapping.
+        self.db.register_fyi_channel_mapping(channel.guild, channel, category_mapping_info["relay_channel"])
+        await self.logging_cog.log_to_channel(
+            f"New channel {channel} belongs to category {channel.category} so FYI functionality has been auto-enabled; "
+            f"it will log to channel {category_mapping_info['relay_channel']}."
+        )
 
     @command(help="De-register FYI functionality for the specified chat channel")
     @has_permissions(administrator=True)
@@ -167,6 +219,14 @@ class RaidFYICog():
                 ["- {} -> {}".format(chat, channel_mappings[chat]) for chat in chats_sorted]
             )
 
+        category_mapping_str = "(none)"
+        category_mappings = fyi_info["category_mappings"]
+        if len(category_mappings) > 0:
+            categories_sorted = sorted(category_mappings.keys(), key=lambda category: category.name)
+            category_mapping_str = "\n".join(
+                ["- {} -> {}".format(category, category_mappings[category]) for category in categories_sorted]
+            )
+
         summary_message = f"""\
 {ctx.author.mention}
 FYI emoji: {fyi_info["fyi_emoji"]}
@@ -177,6 +237,8 @@ RSVP emoji: {fyi_info["rsvp_emoji"] if fyi_info["enhanced"] else "(None)"}
 Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(None)"}
 Channel mappings:
 {mapping_list_str}
+Category mappings:
+{category_mapping_str}
 """
 
         await ctx.channel.send(summary_message)
@@ -252,6 +314,7 @@ Channel mappings:
         return stripped_content
 
     FYI_ALIASES = ["FYI", "Fyi", "fyi"]
+
     @command(
         help="Post an FYI to the corresponding FYI channel.",
         rest_is_raw=True,
@@ -284,6 +347,7 @@ Channel mappings:
         relay_message = await relay_channel.send(relay_message_text)
 
         chat_relay_message_id = None
+        chat_relay_message = None
         if fyi_info["relay_to_chat"]:
             chat_relay_message = await ctx.channel.send(relay_message_text)
             chat_relay_message_id = chat_relay_message.id

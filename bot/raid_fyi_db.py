@@ -10,7 +10,7 @@ from bot.convert_using_guild import emoji_converter
 
 
 # The schema of the database:
-#
+
 # (guild[guild id], config):
 # - fyi_emoji (string or emoji ID)
 # - fyi_emoji_type ("normal" or "custom")
@@ -21,10 +21,13 @@ from bot.convert_using_guild import emoji_converter
 # - cancelled_emoji (string or emoji ID)
 # - cancelled_emoji_type ("normal" or "custom")
 # - timezone (in a form that pytz recognizes, e.g. "America/Vancouver"
-#
+
+# (guild[guild id], category[category id]):
+# - relay_channel (channel ID)
+
 # (guild[guild id], chatchannel[channel id]):
 # - relay_channel (channel ID)
-#
+
 # (guild[guild id], channel[channel id]#message[message id])
 # If this message is the original:
 # - timestamp
@@ -42,6 +45,7 @@ from bot.convert_using_guild import emoji_converter
 chat_channel_pattern = "chatchannel(.+)"
 channel_message_template = "channel{}#message{}"
 channel_message_pattern = "channel([0-9]+)#message([0-9]+)"
+category_pattern = "category(.+)"
 
 
 class RaidFYIDB(object):
@@ -101,6 +105,22 @@ class RaidFYIDB(object):
             channel_mappings[chat_channel] = relay_channel
 
         result["channel_mappings"] = channel_mappings
+
+        # Get all category mappings.
+        response = self.table.query(
+            KeyConditionExpression=(Key("guild_id").eq(guild.id) &
+                                    Key("config_channel_message").begins_with("category"))
+        )
+        raw_category_mappings = response["Items"]  # this is a list
+
+        category_mappings = {}
+        for category_config in raw_category_mappings:
+            category_id = int(re.match(category_pattern, category_config["config_channel_message"]).group(1))
+            category = guild.get_channel(category_id)
+            relay_channel = guild.get_channel(category_config["relay_channel"])
+            category_mappings[category] = relay_channel
+
+        result["category_mappings"] = category_mappings
         return result
 
     def configure_fyi(
@@ -230,6 +250,52 @@ class RaidFYIDB(object):
             }
         )
 
+    def register_fyi_category_mapping(
+            self,
+            guild: discord.Guild,
+            category: discord.CategoryChannel,
+            fyi_channel: discord.TextChannel
+    ):
+        """
+        Register a category-to-FYI-channel mapping (e.g. for EX raid channels).
+
+        :param guild:
+        :param category:
+        :param fyi_channel:
+        :return:
+        """
+        self.table.put_item(
+            Item={
+                "guild_id": guild.id,
+                "config_channel_message": "category{}".format(category.id),
+                "relay_channel": fyi_channel.id
+            }
+        )
+
+    def get_fyi_category(
+            self,
+            guild: discord.Guild,
+            category: discord.CategoryChannel
+    ):
+        """
+        Retrieve the information about this category's FYI mapping.
+
+        :param guild:
+        :param category:
+        :return:
+        """
+        response = self.table.get_item(
+            Key={
+                "guild_id": guild.id,
+                "config_channel_message": "category{}".format(category.id)
+            }
+        )
+        result = response.get("Item")
+        if result is None:
+            return
+        result["relay_channel"] = guild.get_channel(result["relay_channel"])
+        return result
+
     def deregister_fyi_channel_mapping(self, guild: discord.Guild, chat_channel: discord.TextChannel):
         """
         Deregister the specified FYI channel mapping.
@@ -242,6 +308,21 @@ class RaidFYIDB(object):
             Key={
                 "guild_id": guild.id,
                 "config_channel_message": "chatchannel{}".format(chat_channel.id)
+            }
+        )
+
+    def deregister_fyi_category_mapping(self, guild: discord.Guild, category: discord.CategoryChannel):
+        """
+        Deregister the specified category-to-FYI-channel mapping.
+
+        :param guild:
+        :param category:
+        :return:
+        """
+        self.table.delete_item(
+            Key={
+                "guild_id": guild.id,
+                "config_channel_message": "category{}".format(category.id)
             }
         )
 
