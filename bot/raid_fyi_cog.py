@@ -5,26 +5,28 @@ import re
 from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
 from datetime import datetime, timezone
 
+from bot.bot_perms_cog import BotPermsChecker
+
 __author__ = 'Richard Liang'
 
 
-class RaidFYICog(object):
+class RaidFYICog(BotPermsChecker):
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 
     When the .fyi command is issued in a chat channel, the remainder of the message is relayed to
     a corresponding RSVP channel.
     """
-    def __init__(self, bot, db, logging_cog=None):
+    def __init__(self, bot, db, bot_permissions_db, logging_cog=None):
         self.bot = bot
         self.db = db  # a RaidFYIDB or workalike
+        super(RaidFYICog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
 
     @command(
         help="Configure raid FYI functionality.",
         aliases=["activate_fyi", "enable_fyi"]
     )
-    @has_permissions(administrator=True)
     async def configure_fyi(
             self,
             ctx,
@@ -39,6 +41,8 @@ class RaidFYICog(object):
         :param timezone_str: string describing the guild's timezone, as understood by pytz
         :return:
         """
+        self.can_configure_bot_validator(ctx)
+
         emoji_converter = EmojiConverter()
         try:
             actual_emoji = await emoji_converter.convert(ctx, fyi_emoji)
@@ -52,7 +56,6 @@ class RaidFYICog(object):
         help="Deactivate raid FYI functionality.",
         aliases=["deactivate_fyi"]
     )
-    @has_permissions(administrator=True)
     async def disable_fyi(self, ctx):
         """
         Disable raid FYI functionality for this guild.
@@ -60,6 +63,7 @@ class RaidFYICog(object):
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.db.deactivate_fyi(ctx.guild)
         await ctx.channel.send(f"{ctx.author.mention} Raid FYI functionality is now disabled.")
 
@@ -67,7 +71,6 @@ class RaidFYICog(object):
         help="Configure raid FYI functionality.",
         aliases=["activate_enhanced_fyi", "enable_enhanced_fyi"]
     )
-    @has_permissions(administrator=True)
     async def configure_enhanced_fyi(
             self,
             ctx,
@@ -84,6 +87,8 @@ class RaidFYICog(object):
         :param relay_to_chat:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
+
         emoji_converter = EmojiConverter()
         try:
             actual_rsvp_emoji = await emoji_converter.convert(ctx, rsvp_emoji)
@@ -102,7 +107,6 @@ class RaidFYICog(object):
         help="Deactivate raid FYI functionality.",
         aliases=["deactivate_enhanced_fyi"]
     )
-    @has_permissions(administrator=True)
     async def disable_enhanced_fyi(self, ctx):
         """
         Disable raid FYI functionality for this guild.
@@ -110,6 +114,7 @@ class RaidFYICog(object):
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.db.deactivate_enhanced_fyi(ctx.guild)
         await ctx.channel.send(f"{ctx.author.mention} Raid FYI functionality is now disabled.")
 
@@ -134,7 +139,6 @@ class RaidFYICog(object):
         await command_channel.send(f"{commander.mention} FYIs from {chat_channel} will be posted in {fyi_channel}.")
 
     @command(help="Map a chat channel to an FYI channel.", aliases=["mapchattofyi"])
-    @has_permissions(administrator=True)
     async def map_chat_to_fyi(self, ctx, chat_channel: discord.TextChannel, fyi_channel: discord.TextChannel):
         """
         Create a mapping from a chat channel to an FYI channel.
@@ -144,10 +148,10 @@ class RaidFYICog(object):
         :param fyi_channel:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         await self.map_chat_to_fyi_helper(ctx.guild, ctx.author, ctx.channel, chat_channel, fyi_channel)
 
     @command(help="Map a category to an FYI channel.", aliases=["mapcategorytofyi"])
-    @has_permissions(administrator=True)
     async def map_category_to_fyi(self, ctx, category: discord.CategoryChannel, fyi_channel: discord.TextChannel):
         """
         Create a mapping from a category to an FYI channel.
@@ -157,6 +161,7 @@ class RaidFYICog(object):
         :param fyi_channel:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         await ctx.channel.send(f"{ctx.author.mention} FYIs in all channels in {category} "
                                f"will be posted in {fyi_channel}.")
         self.db.register_fyi_category_mapping(ctx.guild, category, fyi_channel)
@@ -183,7 +188,6 @@ class RaidFYICog(object):
             )
 
     @command(help="De-register FYI functionality for the specified chat channel")
-    @has_permissions(administrator=True)
     async def deregister_fyi_mapping(self, ctx, chat_channel: discord.TextChannel):
         """
         Deregister the FYI mapping from a chat channel.
@@ -192,11 +196,11 @@ class RaidFYICog(object):
         :param chat_channel:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.db.deregister_fyi_channel_mapping(ctx.guild, chat_channel)
         await ctx.channel.send(f"{ctx.author.mention} FYIs from {chat_channel} will now be ignored.")
 
     @command(help="De-register FYI functionality for all channels")
-    @has_permissions(administrator=True)
     async def deregister_all_fyi_mappings(self, ctx):
         """
         Deregister all raid FYI mappings.
@@ -208,7 +212,6 @@ class RaidFYICog(object):
         await ctx.channel.send(f"{ctx.author.mention} FYIs from all channels will now be ignored.")
 
     @command(help="Show FYI configuration", aliases=["show_fyi_config", "show_fyi_settings"])
-    @has_permissions(manage_nicknames=True)
     async def show_fyi_configuration(self, ctx):
         """
         Deregister all of this guild's chat channel FYI mappings.
@@ -216,6 +219,7 @@ class RaidFYICog(object):
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         fyi_info = self.db.get_fyi_info(ctx.guild)
         if fyi_info is None:
             await ctx.channel.send(f"{ctx.author.mention} Raid FYI functionality is not configured.")

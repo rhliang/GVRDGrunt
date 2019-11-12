@@ -14,9 +14,9 @@ class BotPermsChecker(object):
     """
     def __init__(self, bot, permissions_db):
         self.bot = bot
-        self.db = permissions_db  # a BotPermsDB or workalike
+        self.permissions_db = permissions_db  # a BotPermsDB or workalike
 
-    def can_run_bot(self, ctx):
+    def can_configure_bot(self, ctx):
         """
         True if the calling member has bot perms for this guild; False otherwise.
 
@@ -27,14 +27,14 @@ class BotPermsChecker(object):
         if caller_permissions.administrator:
             return True
 
-        result = self.db.get_bot_perms(ctx.guild)
+        result = self.permissions_db.get_bot_perms(ctx.guild)
         if result is None:
             return False
 
         return len(set(ctx.author.roles).intersection(result["can_configure_bot"])) > 0
 
-    def can_run_bot_validator(self, ctx):
-        if not self.can_run_bot(ctx):
+    def can_configure_bot_validator(self, ctx):
+        if not self.can_configure_bot(ctx):
             raise CannotRunCommand("You do not have permissions to run this command.")
 
 
@@ -53,10 +53,9 @@ class BotPermsCog(BotPermsChecker):
         :param ctx:
         :return:
         """
-        if not self.can_run_bot(ctx):
-            return
+        self.can_configure_bot_validator(ctx)
 
-        bot_perms = self.db.get_bot_perms(ctx.guild)
+        bot_perms = self.permissions_db.get_bot_perms(ctx.guild)
         perms_str = "(None)"
         if bot_perms is not None and len(bot_perms["can_configure_bot"]) > 0:
             perms_str = "- " + "\n- ".join(bot_perms["can_configure_bot"])
@@ -81,7 +80,7 @@ class BotPermsCog(BotPermsChecker):
         :param role:
         :return:
         """
-        self.db.add_bot_permissions_to_role(ctx.guild, role)
+        self.permissions_db.add_bot_permissions_to_role(ctx.guild, role)
         summary_message = f"{ctx.author.mention} Members with role {role} can now configure the bot."
         await ctx.channel.send(summary_message)
 
@@ -102,7 +101,7 @@ class BotPermsCog(BotPermsChecker):
         :param role:
         :return:
         """
-        self.db.remove_bot_permissions_from_role(ctx.guild, role)
+        self.permissions_db.remove_bot_permissions_from_role(ctx.guild, role)
         summary_message = f"{ctx.author.mention} Members with role {role} cannot configure the bot."
         await ctx.channel.send(summary_message)
 
@@ -123,7 +122,7 @@ class BotPermsCog(BotPermsChecker):
         :param role:
         :return:
         """
-        self.db.remove_bot_permissions_from_role(ctx.guild, role)
+        self.permissions_db.remove_bot_permissions_from_role(ctx.guild, role)
         summary_message = f"{ctx.author.mention} Members with role {role} cannot configure the bot."
         await ctx.channel.send(summary_message)
 
@@ -142,7 +141,7 @@ class BotPermsCog(BotPermsChecker):
         :param ctx:
         :return:
         """
-        self.db.reset_bot_permissions(ctx.guild)
+        self.permissions_db.reset_bot_permissions(ctx.guild)
         summary_message = f"{ctx.author.mention} All roles have had their bot configuration privileges revoked."
         await ctx.channel.send(summary_message)
 
