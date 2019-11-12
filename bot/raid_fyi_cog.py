@@ -5,12 +5,10 @@ import re
 from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
 from datetime import datetime, timezone
 
-from bot.bot_perms_cog import BotPermsChecker
-
 __author__ = 'Richard Liang'
 
 
-class RaidFYICog(BotPermsChecker):
+class RaidFYICog(object):
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 
@@ -41,9 +39,6 @@ class RaidFYICog(BotPermsChecker):
         :param timezone_str: string describing the guild's timezone, as understood by pytz
         :return:
         """
-        if not self.can_run_bot(ctx):
-            return
-
         emoji_converter = EmojiConverter()
         try:
             actual_emoji = await emoji_converter.convert(ctx, fyi_emoji)
