@@ -43,3 +43,18 @@ Checking the entire contents of a table:
 ```
 aws dynamodb scan --table-name [table name] --endpoint-url http://localhost:8000
 ```
+
+Deleting a table:
+```
+aws dynamodb delete-table --table-name [table name] --endpoint-url http://localhost:8000
+```
+
+Creating a backup:
+```
+aws dynamodb create-backup --table-name [table name] --backup-name [backup name]
+```
+
+Restoring a table from a backup:
+```
+aws dynamodb restore-table-from-backup --table-name [table name] --backup-arn [backup ARN]
+```

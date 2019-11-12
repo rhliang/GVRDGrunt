@@ -5,10 +5,12 @@ import re
 from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
 from datetime import datetime, timezone
 
+from bot.bot_perms_cog import BotPermsChecker
+
 __author__ = 'Richard Liang'
 
 
-class RaidFYICog(object):
+class RaidFYICog(BotPermsChecker):
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 
@@ -39,6 +41,9 @@ class RaidFYICog(object):
         :param timezone_str: string describing the guild's timezone, as understood by pytz
         :return:
         """
+        if not self.can_run_bot(ctx):
+            return
+
         emoji_converter = EmojiConverter()
         try:
             actual_emoji = await emoji_converter.convert(ctx, fyi_emoji)
@@ -72,6 +77,7 @@ class RaidFYICog(object):
             self,
             ctx,
             rsvp_emoji,
+            cancelled_emoji,
             relay_to_chat: bool
     ):
         """
@@ -79,16 +85,22 @@ class RaidFYICog(object):
 
         :param ctx:
         :param rsvp_emoji:
+        :param cancelled_emoji:
         :param relay_to_chat:
         :return:
         """
         emoji_converter = EmojiConverter()
         try:
-            actual_emoji = await emoji_converter.convert(ctx, rsvp_emoji)
+            actual_rsvp_emoji = await emoji_converter.convert(ctx, rsvp_emoji)
         except BadArgument:
-            actual_emoji = rsvp_emoji
+            actual_rsvp_emoji = rsvp_emoji
 
-        self.db.activate_enhanced_fyi(ctx.guild, actual_emoji, relay_to_chat)
+        try:
+            actual_cancelled_emoji = await emoji_converter.convert(ctx, cancelled_emoji)
+        except BadArgument:
+            actual_cancelled_emoji = cancelled_emoji
+
+        self.db.activate_enhanced_fyi(ctx.guild, actual_rsvp_emoji, actual_cancelled_emoji, relay_to_chat)
         await ctx.channel.send(f"{ctx.author.mention} Enhanced FYI functionality is now enabled.")
 
     @command(
@@ -152,7 +164,7 @@ class RaidFYICog(object):
         """
         await ctx.channel.send(f"{ctx.author.mention} FYIs in all channels in {category} "
                                f"will be posted in {fyi_channel}.")
-        self.db.register_fyi_category(ctx.guild, category, fyi_channel)
+        self.db.register_fyi_category_mapping(ctx.guild, category, fyi_channel)
         for channel in category.channels:
             await self.map_chat_to_fyi_helper(ctx.guild, ctx.author, ctx.channel, channel, fyi_channel)
 
@@ -167,10 +179,13 @@ class RaidFYICog(object):
             return
         # This channel belongs to a mapped category, so we configure its FYI mapping.
         self.db.register_fyi_channel_mapping(channel.guild, channel, category_mapping_info["relay_channel"])
-        await self.logging_cog.log_to_channel(
-            f"New channel {channel} belongs to category {channel.category} so FYI functionality has been auto-enabled; "
-            f"it will log to channel {category_mapping_info['relay_channel']}."
-        )
+        if self.logging_cog is not None:
+            await self.logging_cog.log_to_channel(
+                channel.guild,
+                f"New channel {channel} belongs to category {channel.category} "
+                f"so FYI functionality has been auto-enabled; "
+                f"it will log to channel {category_mapping_info['relay_channel']}."
+            )
 
     @command(help="De-register FYI functionality for the specified chat channel")
     @has_permissions(administrator=True)
@@ -297,7 +312,7 @@ Category mappings:
         """
         cleaned_content = message.clean_content
         strip_command_regex = re.compile(
-            "(?:{}fyi +)?(.+)".format(re.escape(self.bot.command_prefix)),
+            "(?:^.?fyi +)?(.+)",
             flags=re.IGNORECASE | re.DOTALL
         )
         try:
@@ -313,7 +328,7 @@ Category mappings:
             return
         return stripped_content
 
-    FYI_ALIASES = ["FYI", "Fyi", "fyi"]
+    FYI_ALIASES = ["FYI", "Fyi"]
 
     @command(
         help="Post an FYI to the corresponding FYI channel.",
@@ -397,11 +412,22 @@ Category mappings:
         :param tz: a Python timezone object as returned by pytz.timezone
         :return:
         """
-        command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
-        relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
+        try:
+            command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
+        except discord.errors.NotFound:
+            return
+
+        try:
+            relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
+        except discord.errors.NotFound:
+            return
+
         chat_relay_message = None
         if fyi_info.get("chat_relay_message_id") is not None:
-            chat_relay_message = await fyi_info["chat_channel"].get_message(fyi_info["chat_relay_message_id"])
+            try:
+                chat_relay_message = await fyi_info["chat_channel"].get_message(fyi_info["chat_relay_message_id"])
+            except discord.errors.NotFound:
+                return
 
         relay_message_text = self.build_relay_message_text(
             fyi_info["creator"],
@@ -491,7 +517,7 @@ Category mappings:
                 reactor_ping = (f"{audience_str} the FYI you were interested in has been updated "
                                 f"by {fyi_info['creator'].mention}:\n"
                                 f"{inset_relay_message_text}")
-                await fyi_info["command_message"].channel.send(reactor_ping)
+                await fyi_info["chat_channel"].send(reactor_ping)
 
     async def on_raw_reaction_add(self, payload):
         await self.update_fyi_interested(payload)
@@ -516,11 +542,22 @@ Category mappings:
         if fyi_info is None:
             return
 
-        command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
-        relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
+        try:
+            command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
+        except discord.errors.NotFound:
+            command_message = None
+
+        try:
+            relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
+        except discord.errors.NotFound:
+            relay_message = None
+
         chat_relay_message = None
         if fyi_info["chat_relay_message_id"] is not None:
-            chat_relay_message = await fyi_info["chat_channel"].get_message(fyi_info["chat_relay_message_id"])
+            try:
+                chat_relay_message = await fyi_info["chat_channel"].get_message(fyi_info["chat_relay_message_id"])
+            except discord.errors.NotFound:
+                chat_relay_message = None
 
         # Strike out any relay messages that are remaining.
         for relay_message in [x for x in [relay_message, chat_relay_message] if x is not None]:
@@ -538,7 +575,7 @@ Category mappings:
             inset_fyi_text = "> " + fyi_info["edit_history"][-1].replace("\n", "\n> ")
             deletion_ping = (f"{audience_str} the FYI you were interested in has been removed:\n"
                              f"{inset_fyi_text}")
-            await fyi_info["command_message"].channel.send(deletion_ping)
+            await fyi_info["chat_channel"].send(deletion_ping)
 
         self.db.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
 

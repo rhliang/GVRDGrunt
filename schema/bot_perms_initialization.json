@@ -1,0 +1,19 @@
+{
+  "TableName": "BotPerms",
+  "KeySchema": [
+    {
+      "AttributeName": "guild_id",
+      "KeyType": "HASH"
+    }
+  ],
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "guild_id",
+      "AttributeType": "N"
+    }
+  ],
+  "ProvisionedThroughput": {
+    "ReadCapacityUnits": 10,
+    "WriteCapacityUnits": 5
+  }
+}

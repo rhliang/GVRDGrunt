@@ -65,7 +65,7 @@ def main():
     gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
     gvrd_grunt.add_cog(PurgeChannelsCog(gvrd_grunt))
     gvrd_grunt.add_cog(RoleReminderCog(gvrd_grunt, role_reminder_db, logging_cog=logging_cog))
-    gvrd_grunt.add_cog(RaidFYICog(gvrd_grunt, raid_fyi_db))
+    gvrd_grunt.add_cog(RaidFYICog(gvrd_grunt, raid_fyi_db, logging_cog=logging_cog))
 
     # For testing only -- *do not install on a production bot!*
     # gvrd_grunt.add_cog(SpamCog())

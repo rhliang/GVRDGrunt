@@ -274,16 +274,15 @@ class RaidFYIDB(object):
 
     def get_fyi_category(
             self,
-            guild: discord.Guild,
             category: discord.CategoryChannel
     ):
         """
         Retrieve the information about this category's FYI mapping.
 
-        :param guild:
         :param category:
         :return:
         """
+        guild = category.guild
         response = self.table.get_item(
             Key={
                 "guild_id": guild.id,
@@ -435,28 +434,27 @@ class RaidFYIDB(object):
             return
 
         # Check if this is the command or the relay.
-        if "creator_id" in result:
-            chat_channel = channel
-            command_message_id = message_id
-            relay_channel = guild.get_channel(result["relay_channel_id"])
-            relay_message_id = result["relay_message_id"]
-            command_message_result = result
-        else:
-            relay_channel = channel
-            relay_message_id = message_id
-            chat_channel = guild.get_channel(result["chat_channel_id"])
-            command_message_id = result["command_message_id"]
-            # Get the record for the command message.
+        if "creator_id" not in result:
             response = self.table.get_item(
                 Key={
                     "guild_id": guild.id,
-                    "config_channel_message": channel_message_template.format(chat_channel.id, command_message_id)
+                    "config_channel_message": channel_message_template.format(result["chat_channel_id"],
+                                                                              result["command_message_id"])
                 }
             )
-            command_message_result = response.get("Item")
+            result = response.get("Item")
 
-        timestamp = dateutil.parser.parse(command_message_result["timestamp"])
-        creator = guild.get_member(command_message_result["creator_id"])
+        chat_channel = guild.get_channel(
+            int(
+                re.match(channel_message_pattern, result["config_channel_message"]).group(1)
+            )
+        )
+        command_message_id = int(re.match(channel_message_pattern, result["config_channel_message"]).group(2))
+        relay_channel = guild.get_channel(result["relay_channel_id"])
+        relay_message_id = result["relay_message_id"]
+
+        timestamp = dateutil.parser.parse(result["timestamp"])
+        creator = guild.get_member(result["creator_id"])
 
         # command_message = await chat_channel.get_message(command_message_id)
         # relay_message = await relay_channel.get_message(relay_message_id)
@@ -465,11 +463,11 @@ class RaidFYIDB(object):
             "command_message_id": command_message_id,
             "relay_channel": relay_channel,
             "relay_message_id": relay_message_id,
-            "chat_relay_message_id": command_message_result["chat_relay_message_id"],
+            "chat_relay_message_id": result["chat_relay_message_id"],
             "timestamp": timestamp,
             "creator": creator,
-            "edit_history": command_message_result["edit_history"],
-            "interested": command_message_result["interested"]
+            "edit_history": result["edit_history"],
+            "interested": [guild.get_member(x) for x in result["interested"]]
         }
 
     def update_fyi(
@@ -531,24 +529,21 @@ class RaidFYIDB(object):
         """
         result = self.get_fyi(guild, channel, message_id)
         if result is None:
-            raise ValueError("Could not find an FYI to delete with guild {}, channel {}, message ID {}")
+            raise ValueError(f"Could not find an FYI to delete with guild {guild}, "
+                             f"channel {channel}, message ID {message_id}")
 
         # Check if this is the command or the relay.
-        if "creator_id" in result:
-            chat_channel = channel
-            command_message_id = message_id
-            relay_channel = guild.get_channel(result["relay_channel_id"])
-            relay_message_id = result["relay_message_id"]
-            chat_relay_message_id = result["chat_relay_message_id"]
-        else:
-            relay_channel = channel
-            relay_message_id = message_id
-            chat_channel = guild.get_channel(result["chat_channel_id"])
-            command_message_id = result["command_message_id"]
-            command_message_result = self.get_fyi(guild, chat_channel, command_message_id)
+        if "creator_id" not in result:
+            result = self.get_fyi(guild, result["chat_channel"], result["command_message_id"])
             if result is None:
-                raise ValueError("Could not find the original FYI attached to guild {}, channel {}, message ID {}")
-            chat_relay_message_id = command_message_result["chat_relay_message_id"]
+                raise ValueError(f"Could not find the original FYI attached to guild {guild}, "
+                                 f"channel {channel}, message ID {message_id}")
+
+        chat_channel = result["chat_channel"]
+        command_message_id = result["command_message_id"]
+        relay_channel = result["relay_channel"]
+        relay_message_id = result["relay_message_id"]
+        chat_relay_message_id = result["chat_relay_message_id"]
 
         with self.table.batch_writer() as batch:
             batch.delete_item(
@@ -567,7 +562,7 @@ class RaidFYIDB(object):
                 batch.delete_item(
                     Key={
                         "guild_id": guild.id,
-                        "config_channel_message": channel_message_template.format(relay_channel.id,
+                        "config_channel_message": channel_message_template.format(chat_channel.id,
                                                                                   chat_relay_message_id)
                     }
                 )
