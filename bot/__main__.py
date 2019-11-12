@@ -14,7 +14,6 @@ from bot.no_command_subscription_cog import NoCommandSubscriptionCog
 from bot.no_command_subscription_db import NoCommandSubscriptionDB
 # from bot.spam_cog import SpamCog
 from bot.purge_channels_cog import PurgeChannelsCog
-from bot.raid_fyi_cog import RaidFYICog
 from bot.role_reaction_subscription_cog import RoleReactionSubscriptionCog
 from bot.role_reaction_subscription_db import RoleReactionSubscriptionDB
 from bot.role_reminder_cog import RoleReminderCog
@@ -22,7 +21,11 @@ from bot.role_reminder_db import RoleReminderDB
 from bot.role_set_operations_cog import RoleSetOperationsCog
 from bot.verification_cog import VerificationCog
 from bot.verification_db import VerificationDB
+
 from bot.raid_fyi_db import RaidFYIDB
+from bot.raid_fyi_cog import RaidFYICog
+from bot.bot_perms_db import BotPermsDB
+from bot.bot_perms_cog import BotPermsCog
 
 __author__ = "Richard Liang"
 
@@ -41,6 +44,7 @@ def main():
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
         description="A grunt worker for the GVRD servers' needs"
     )
+
     verification_db = VerificationDB(settings["sqlite_db"])
     logging_db = GuildLoggingDB(settings["sqlite_db"])
     ex_db = EXGateDB(settings["sqlite_db"])
@@ -48,8 +52,13 @@ def main():
     no_command_subscription_db = NoCommandSubscriptionDB(settings["sqlite_db"])
     role_reminder_db = RoleReminderDB(settings["sqlite_db"])
 
-    # This database has been migrated to DynamoDB.
+    # These databases are on DynamoDB.
     raid_fyi_db = RaidFYIDB(
+        endpoint_url=settings["endpoint_url"],
+        aws_access_key_id=settings["aws_access_key_id"],
+        aws_secret_access_key=settings["aws_access_key_id"]
+    )
+    bot_perms_db = BotPermsDB(
         endpoint_url=settings["endpoint_url"],
         aws_access_key_id=settings["aws_access_key_id"],
         aws_secret_access_key=settings["aws_access_key_id"]
@@ -65,7 +74,10 @@ def main():
     gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
     gvrd_grunt.add_cog(PurgeChannelsCog(gvrd_grunt))
     gvrd_grunt.add_cog(RoleReminderCog(gvrd_grunt, role_reminder_db, logging_cog=logging_cog))
-    gvrd_grunt.add_cog(RaidFYICog(gvrd_grunt, raid_fyi_db, logging_cog=logging_cog))
+
+    # These have been converted to check bot perms under the new scheme.
+    gvrd_grunt.add_cog(BotPermsCog(gvrd_grunt, bot_perms_db))
+    gvrd_grunt.add_cog(RaidFYICog(gvrd_grunt, raid_fyi_db, bot_perms_db, logging_cog=logging_cog))
 
     # For testing only -- *do not install on a production bot!*
     # gvrd_grunt.add_cog(SpamCog())

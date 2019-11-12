@@ -18,9 +18,8 @@ class RaidFYICog(BotPermsChecker):
     a corresponding RSVP channel.
     """
     def __init__(self, bot, db, bot_permissions_db, logging_cog=None):
-        self.bot = bot
-        self.db = db  # a RaidFYIDB or workalike
         super(RaidFYICog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
+        self.db = db  # a RaidFYIDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
 
     @command(
