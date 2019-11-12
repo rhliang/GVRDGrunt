@@ -29,9 +29,13 @@ class BotPermsChecker(object):
 
         result = self.db.get_bot_perms(ctx.guild)
         if result is None:
-            raise CannotRunCommand("You do not have bot configuration permissions for this guild.")
+            return False
 
         return len(set(ctx.author.roles).intersection(result["can_configure_bot"])) > 0
+
+    def can_run_bot_validator(self, ctx):
+        if not self.can_run_bot(ctx):
+            raise CannotRunCommand("You do not have permissions to run this command.")
 
 
 class BotPermsCog(BotPermsChecker):
