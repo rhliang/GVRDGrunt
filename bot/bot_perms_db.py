@@ -55,16 +55,18 @@ class BotPermsDB(object):
         :param role:
         :return:
         """
-        result = self.get_bot_perms(guild)
-        if result is None:  # initialize the database with this guild's information
+        try:
+            result = self.get_bot_perms(guild)
+        except GuildPermsNotConfigured:  # initialize the database with this guild's information
             self.table.put_item(
                 Item={
                     "guild_id": guild.id,
                     "can_configure_bot": [role.id]
                 }
             )
+            return
 
-        elif role.id in result["can_configure_bot"]:  # do nothing
+        if role.id in result["can_configure_bot"]:  # do nothing
             raise RoleAlreadyHasPermissions("This role already has bot permissions in this guild.")
 
         else:

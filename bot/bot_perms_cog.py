@@ -1,6 +1,8 @@
 import discord
 from discord.ext.commands import command, has_permissions, CheckFailure
 
+from bot.bot_perms_db import GuildPermsNotConfigured
+
 __author__ = 'Richard Liang'
 
 
@@ -23,12 +25,13 @@ class BotPermsChecker(object):
         :param ctx:
         :return:
         """
-        caller_permissions = ctx.channel.permissions_in(ctx.channel)
+        caller_permissions = ctx.author.permissions_in(ctx.channel)
         if caller_permissions.administrator:
             return True
 
-        result = self.permissions_db.get_bot_perms(ctx.guild)
-        if result is None:
+        try:
+            result = self.permissions_db.get_bot_perms(ctx.guild)
+        except GuildPermsNotConfigured:
             return False
 
         return len(set(ctx.author.roles).intersection(result["can_configure_bot"])) > 0
@@ -55,10 +58,13 @@ class BotPermsCog(BotPermsChecker):
         """
         self.can_configure_bot_validator(ctx)
 
-        bot_perms = self.permissions_db.get_bot_perms(ctx.guild)
         perms_str = "(None)"
-        if bot_perms is not None and len(bot_perms["can_configure_bot"]) > 0:
-            perms_str = "- " + "\n- ".join(bot_perms["can_configure_bot"])
+        try:
+            bot_perms = self.permissions_db.get_bot_perms(ctx.guild)
+            if bot_perms is not None and len(bot_perms["can_configure_bot"]) > 0:
+                perms_str = "- " + "\n- ".join(bot_perms["can_configure_bot"])
+        except GuildPermsNotConfigured:
+            pass
 
         summary_message = f"{ctx.author.mention} Members with the following roles can configure the bot:\n{perms_str}"
         await ctx.channel.send(summary_message)
