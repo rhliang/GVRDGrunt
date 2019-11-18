@@ -168,4 +168,3 @@ class RaidFYIDB(object):
                 "delete from raid_fyi_channel_mapping where guild_id = ?",
                 (guild.id,)
             )
-

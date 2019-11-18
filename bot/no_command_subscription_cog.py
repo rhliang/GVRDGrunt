@@ -110,7 +110,7 @@ class NoCommandSubscriptionCog(Cog):
             await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
             return
 
-        instruction_message = await config["subscription_channel"].get_message(config["instruction_message_id"])
+        instruction_message = await config["subscription_channel"].fetch_message(config["instruction_message_id"])
         try:
             await instruction_message.edit(content=new_instructions)
         except discord.HTTPException:
@@ -170,7 +170,7 @@ class NoCommandSubscriptionCog(Cog):
             await ctx.message.channel.send(f'{ctx.author.mention} No-command subscription is not configured.')
             return
 
-        instruction_message = await config["subscription_channel"].get_message(config["instruction_message_id"])
+        instruction_message = await config["subscription_channel"].fetch_message(config["instruction_message_id"])
         members_who_already_added_this = [x for x in instruction_message.reactions
                                           if x.emoji == actual_emoji]
         if not ctx.guild.get_member(self.bot.user.id) in members_who_already_added_this:

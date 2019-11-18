@@ -86,7 +86,7 @@ class RoleReactionSubscriptionCog(Cog):
             actual_unsubscribe_emoji,
             role
         )
-        message = await channel.get_message(subscription_message_id)
+        message = await channel.fetch_message(subscription_message_id)
         try:
             await message.add_reaction(actual_subscribe_emoji)
             await message.add_reaction(actual_unsubscribe_emoji)
@@ -178,7 +178,7 @@ class RoleReactionSubscriptionCog(Cog):
             return
 
         self.db.remove_subscription_data(ctx.guild, role)
-        message = await subscription_info["channel"].get_message(subscription_info["subscription_message_id"])
+        message = await subscription_info["channel"].fetch_message(subscription_info["subscription_message_id"])
         try:
             await message.remove_reaction(
                 subscription_info["subscribe_emoji"],
@@ -219,7 +219,7 @@ class RoleReactionSubscriptionCog(Cog):
 
         async with ctx.channel.typing():
             for subscription_info in subscription_info_list:
-                message = await subscription_info["channel"].get_message(subscription_info["subscription_message_id"])
+                message = await subscription_info["channel"].fetch_message(subscription_info["subscription_message_id"])
                 try:
                     await message.add_reaction(subscription_info["subscribe_emoji"])
                     await message.add_reaction(subscription_info["unsubscribe_emoji"])
