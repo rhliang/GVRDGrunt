@@ -309,6 +309,7 @@ class RoleReactionSubscriptionCog(Cog):
         elif action == "unsub":
             await self.remove_role(clicking_member, subscription_role)
 
+    @Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """
         Monitor for a reaction added on the guild's disclaimer message.
@@ -320,6 +321,7 @@ class RoleReactionSubscriptionCog(Cog):
         """
         await self.reaction_clicked(payload)
 
+    @Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         """
         Monitor for a reaction removed on the guild's disclaimer message.

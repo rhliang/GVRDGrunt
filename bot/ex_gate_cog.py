@@ -225,6 +225,7 @@ class EXGateCog(Cog):
         await asyncio.sleep(ex_gate_info["wait_time"])
         await confirm.delete()
 
+    @Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """
         Monitor for a reaction added on the guild's disclaimer message.
@@ -236,6 +237,7 @@ class EXGateCog(Cog):
         """
         await self.reaction_clicked(payload)
 
+    @Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         """
         Monitor for a reaction removed on the guild's disclaimer message.
@@ -247,6 +249,7 @@ class EXGateCog(Cog):
         """
         await self.reaction_clicked(payload)
 
+    @Cog.listener()
     async def on_message(self, message):
         """
         Monitor for an affirmative message in the disclaimer channel; delete all messages after 5 seconds.

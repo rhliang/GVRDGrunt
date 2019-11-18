@@ -465,6 +465,7 @@ Category mappings:
         :param payload:
         :return:
         """
+        print("FOOOOOO {}".format(payload))
         if payload.user_id == self.bot.user.id:
             return
         guild = self.bot.get_guild(payload.guild_id)
@@ -517,12 +518,15 @@ Category mappings:
                                 f"{inset_relay_message_text}")
                 await fyi_info["chat_channel"].send(reactor_ping)
 
+    @Cog.listener()
     async def on_raw_reaction_add(self, payload):
         await self.update_fyi_interested(payload)
 
+    @Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         await self.update_fyi_interested(payload)
 
+    @Cog.listener()
     async def on_raw_message_edit(self, payload):
         await self.update_fyi_edited(payload)
 
@@ -577,6 +581,7 @@ Category mappings:
 
         self.db.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
 
+    @Cog.listener()
     async def on_raw_message_delete(self, payload):
         await self.delete_fyi(payload)
 

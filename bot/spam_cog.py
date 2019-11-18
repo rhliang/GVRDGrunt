@@ -14,6 +14,7 @@ class SpamCog(command.Cog):
         self.pause = 1.0
         self.channel = None
 
+    @command.Cog.listener()
     async def on_ready(self):
         """
         Continually check whether spamming is on, and spam the channel if so.

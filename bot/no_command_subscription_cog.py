@@ -423,6 +423,7 @@ class NoCommandSubscriptionCog(Cog):
                 f"{member} removed the {role} role via no-command subscription"
             )
 
+    @Cog.listener()
     async def on_message(self, message):
         """
         Monitor for an affirmative message in the disclaimer channel; delete all messages after 5 seconds.
@@ -603,6 +604,7 @@ class NoCommandSubscriptionCog(Cog):
             )
         await adding_member.send(list_of_roles_string)
 
+    @Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """
         Monitor for a "show subscriptions" reaction added.
@@ -614,6 +616,7 @@ class NoCommandSubscriptionCog(Cog):
         """
         await self.reaction_clicked(payload)
 
+    @Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         """
         Monitor for a "show subscriptions" reaction removed.
