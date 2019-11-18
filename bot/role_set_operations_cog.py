@@ -1,5 +1,5 @@
 import pyparsing as pp
-from discord.ext.commands import command, has_permissions
+from discord.ext.commands import command, has_permissions, Cog
 import discord
 import asyncio
 from datetime import datetime
@@ -9,7 +9,7 @@ from bot.convert_using_guild import role_converter_from_name
 __author__ = 'Richard Liang'
 
 
-class RoleSetOperationsCog():
+class RoleSetOperationsCog(Cog):
     """
     Perform set operations on guild roles.
     """

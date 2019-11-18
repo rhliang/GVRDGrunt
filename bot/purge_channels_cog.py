@@ -1,11 +1,11 @@
 import discord
 import asyncio
-from discord.ext.commands import command, has_permissions
+from discord.ext.commands import command, has_permissions, Cog
 
 __author__ = 'Richard Liang'
 
 
-class PurgeChannelsCog():
+class PurgeChannelsCog(Cog):
     """
     Purge channels and/or categories.
     """

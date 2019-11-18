@@ -1,10 +1,10 @@
 import discord
-from discord.ext.commands import command, has_permissions, BadArgument, RoleConverter
+from discord.ext.commands import command, has_permissions, Cog
 
 __author__ = 'Richard Liang'
 
 
-class GuildLoggingCog():
+class GuildLoggingCog(Cog):
     """
     A cog that handles guild-specific logging in the GVRD guilds.
     """

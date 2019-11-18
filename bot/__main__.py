@@ -37,9 +37,12 @@ def main():
     with open(args.config, "rb") as f:
         settings = json.load(f)
 
+    loop = asyncio.get_event_loop()
+
     gvrd_grunt = commands.Bot(
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
-        description="A grunt worker for the GVRD servers' needs"
+        description="A grunt worker for the GVRD servers' needs",
+        loop=loop
     )
     verification_db = VerificationDB(settings["sqlite_db"])
     logging_db = GuildLoggingDB(settings["sqlite_db"])
@@ -86,9 +89,7 @@ def main():
     logging.getLogger("discord").setLevel(logging.WARNING)
     logging.getLogger("websockets.protocol").setLevel(logging.INFO)
 
-    loop = asyncio.get_event_loop()
-
-    gvrd_grunt.run(settings["token"], loop=loop, bot=True)
+    gvrd_grunt.run(settings["token"], bot=True)
 
 
 if __name__ == "__main__":

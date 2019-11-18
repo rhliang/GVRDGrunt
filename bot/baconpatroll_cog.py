@@ -1,11 +1,11 @@
 import discord
 import textwrap
-from discord.ext.commands import command, has_permissions
+from discord.ext.commands import command, has_permissions, Cog
 
 __author__ = 'Richard Liang'
 
 
-class BaconpaTrollCog():
+class BaconpaTrollCog(Cog):
     """
     Let's call this one "moderator's privilege".
     """

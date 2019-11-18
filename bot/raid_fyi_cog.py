@@ -1,13 +1,12 @@
 import textwrap
 import discord
 import re
-from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
-from datetime import datetime
+from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter, Cog
 
 __author__ = 'Richard Liang'
 
 
-class RaidFYICog():
+class RaidFYICog(Cog):
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 

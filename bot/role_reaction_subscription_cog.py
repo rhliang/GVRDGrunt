@@ -1,11 +1,11 @@
 import textwrap
 import discord
-from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
+from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter, Cog
 
 __author__ = 'Richard Liang'
 
 
-class RoleReactionSubscriptionCog():
+class RoleReactionSubscriptionCog(Cog):
     """
     A cog that handles role assignment in the GVRD guilds.
 
