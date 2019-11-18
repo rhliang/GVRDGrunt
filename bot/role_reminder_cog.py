@@ -1,6 +1,6 @@
 import textwrap
 import discord
-from discord.ext.commands import command, has_permissions
+from discord.ext.commands import command, has_permissions, Cog
 from datetime import datetime, timedelta
 
 __author__ = 'Richard Liang'
@@ -10,7 +10,7 @@ class RoleReminderNotConfigured(Exception):
     pass
 
 
-class RoleReminderCog():
+class RoleReminderCog(Cog):
     """
     A cog that handles reminding users to subscribe to a suggested role the GVRD guilds.
     """

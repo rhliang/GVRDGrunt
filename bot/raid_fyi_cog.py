@@ -2,7 +2,7 @@ from operator import attrgetter
 from collections import defaultdict
 import discord
 import re
-from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
+from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
 from datetime import datetime, timezone
 
 from bot.bot_perms_cog import BotPermsChecker
@@ -10,7 +10,7 @@ from bot.bot_perms_cog import BotPermsChecker
 __author__ = 'Richard Liang'
 
 
-class RaidFYICog(BotPermsChecker):
+class RaidFYICog(BotPermsChecker, Cog):
     """
     A cog that handles raid FYI functionality in the GVRD guilds.
 

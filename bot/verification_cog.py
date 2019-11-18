@@ -1,6 +1,6 @@
 import textwrap
 import discord
-from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
+from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter, Cog
 
 from bot.convert_using_guild import role_converter_from_name
 
@@ -15,7 +15,7 @@ class VerificationNotConfigured(Exception):
     pass
 
 
-class VerificationCog():
+class VerificationCog(Cog):
     """
     A cog that handles verification of users in the GVRD guilds.
     """

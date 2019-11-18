@@ -1,5 +1,5 @@
 import discord
-from discord.ext.commands import command, has_permissions, CheckFailure
+from discord.ext.commands import command, has_permissions, CheckFailure, Cog
 
 from bot.bot_perms_db import GuildPermsNotConfigured
 
@@ -41,7 +41,7 @@ class BotPermsChecker(object):
             raise CannotRunCommand("You do not have permissions to run this command.")
 
 
-class BotPermsCog(BotPermsChecker):
+class BotPermsCog(BotPermsChecker, Cog):
     """
     A cog that handles configuration of who can run what commands.
     """
@@ -49,7 +49,7 @@ class BotPermsCog(BotPermsChecker):
         super(BotPermsCog, self).__init__(bot, db)
 
     @command(help="Show bot permissions", aliases=["bot_perms"])
-    async def bot_permissions(self, ctx):
+    async def get_bot_permissions(self, ctx):
         """
         Show this guild's bot permissions.
 
@@ -62,7 +62,7 @@ class BotPermsCog(BotPermsChecker):
         try:
             bot_perms = self.permissions_db.get_bot_perms(ctx.guild)
             if bot_perms is not None and len(bot_perms["can_configure_bot"]) > 0:
-                perms_str = "- " + "\n- ".join(bot_perms["can_configure_bot"])
+                perms_str = "- " + "\n- ".join([str(x) for x in bot_perms["can_configure_bot"]])
         except GuildPermsNotConfigured:
             pass
 
@@ -88,27 +88,6 @@ class BotPermsCog(BotPermsChecker):
         """
         self.permissions_db.add_bot_permissions_to_role(ctx.guild, role)
         summary_message = f"{ctx.author.mention} Members with role {role} can now configure the bot."
-        await ctx.channel.send(summary_message)
-
-    @command(
-        help="Remove bot permissions from a role",
-        aliases=["revoke_bot_admin"]
-    )
-    @has_permissions(administrator=True)
-    async def remove_bot_permissions(
-            self,
-            ctx,
-            role: discord.Role
-    ):
-        """
-        Remove bot permissions from the specified role.
-
-        :param ctx:
-        :param role:
-        :return:
-        """
-        self.permissions_db.remove_bot_permissions_from_role(ctx.guild, role)
-        summary_message = f"{ctx.author.mention} Members with role {role} cannot configure the bot."
         await ctx.channel.send(summary_message)
 
     @command(

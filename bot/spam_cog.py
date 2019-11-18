@@ -5,7 +5,7 @@ import asyncio
 __author__ = 'Richard Liang'
 
 
-class SpamCog():
+class SpamCog(command.Cog):
     """
     Spam a channel for stress-testing purposes.  DO NOT LET THIS ANYWHERE NEAR A PRODUCTION BOT!
     """

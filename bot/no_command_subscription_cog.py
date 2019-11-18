@@ -3,14 +3,14 @@ import asyncio
 import csv
 from io import BytesIO, StringIO
 import discord
-from discord.ext.commands import command, has_permissions, TextChannelConverter, BadArgument, EmojiConverter
+from discord.ext.commands import command, has_permissions, TextChannelConverter, BadArgument, EmojiConverter, Cog
 
 from bot.convert_using_guild import role_converter_from_name, get_matching_roles_case_insensitive
 
 __author__ = 'Richard Liang'
 
 
-class NoCommandSubscriptionCog():
+class NoCommandSubscriptionCog(Cog):
     """
     A cog that handles role subscription in the GVRD guilds.
 

@@ -92,7 +92,7 @@ class BotPermsDB(object):
         if result is None:  # do nothing
             raise GuildPermsNotConfigured("No configuration was found for this guild.")
 
-        elif role.id not in result["can_configure_bot"]:  # do nothing
+        elif role not in result["can_configure_bot"]:  # do nothing
             raise RoleDoesNotHavePermissions("This role does not have bot permissions in this guild.")
 
         else:
@@ -102,7 +102,7 @@ class BotPermsDB(object):
                 },
                 UpdateExpression="SET can_configure_bot = :can_configure_bot",
                 ExpressionAttributeValues={
-                    ":can_configure_bot": [x.id for x in result["can_configure_bot"] if x != role.id]
+                    ":can_configure_bot": [x.id for x in result["can_configure_bot"] if x.id != role.id]
                 }
             )
 

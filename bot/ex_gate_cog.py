@@ -1,12 +1,12 @@
 import textwrap
 import asyncio
 import discord
-from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter
+from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter, Cog
 
 __author__ = 'Richard Liang'
 
 
-class EXGateCog():
+class EXGateCog(Cog):
     """
     A cog that handles EX gating in the GVRD guilds.
 
