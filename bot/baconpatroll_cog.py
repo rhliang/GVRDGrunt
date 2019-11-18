@@ -110,6 +110,7 @@ class BaconpaTrollCog(Cog):
         del self.guild_info[ctx.guild]
         await ctx.message.channel.send(f'{ctx.message.author.mention} No fun')
 
+    @Cog.listener()
     async def on_message(self, message):
         """
         When Baconpatroller praises us, thank him.

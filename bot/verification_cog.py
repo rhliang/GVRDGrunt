@@ -556,7 +556,6 @@ class VerificationCog(Cog):
                 f"{ctx.message.author.mention} Member {member} has been reset to the Welcome role."
             )
 
-
     def is_welcome_member_screenshot(self, message):
         """
         True if this is a screenshot in the appropriate channel from a Welcome member, False otherwise.
@@ -606,6 +605,7 @@ class VerificationCog(Cog):
         self.member_to_screenshot[screenshot_message.author] = screenshot_message
         self.screenshot_to_member[screenshot_message] = screenshot_message.author
 
+    @Cog.listener()
     async def on_message(self, message):
         """
         If this is a Welcome member's screenshot in the right channel, add reactions and start tracking it.
@@ -646,6 +646,7 @@ class VerificationCog(Cog):
         await screenshot_message.add_reaction(verification_info[f"{team}_emoji"])
         del self.member_to_screenshot[member]
 
+    @Cog.listener()
     async def on_reaction_add(self, reaction, user):
         """
         Mark as verified or denied when a moderator adds a reaction to a screenshot message.
