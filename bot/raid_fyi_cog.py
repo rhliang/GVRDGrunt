@@ -411,19 +411,19 @@ Category mappings:
         :return:
         """
         try:
-            command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
+            command_message = await fyi_info["chat_channel"].fetch_message(fyi_info["command_message_id"])
         except discord.errors.NotFound:
             return
 
         try:
-            relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
+            relay_message = await fyi_info["relay_channel"].fetch_message(fyi_info["relay_message_id"])
         except discord.errors.NotFound:
             return
 
         chat_relay_message = None
         if fyi_info.get("chat_relay_message_id") is not None:
             try:
-                chat_relay_message = await fyi_info["chat_channel"].get_message(fyi_info["chat_relay_message_id"])
+                chat_relay_message = await fyi_info["chat_channel"].fetch_message(fyi_info["chat_relay_message_id"])
             except discord.errors.NotFound:
                 return
 
@@ -465,7 +465,6 @@ Category mappings:
         :param payload:
         :return:
         """
-        print("FOOOOOO {}".format(payload))
         if payload.user_id == self.bot.user.id:
             return
         guild = self.bot.get_guild(payload.guild_id)
@@ -545,19 +544,19 @@ Category mappings:
             return
 
         try:
-            command_message = await fyi_info["chat_channel"].get_message(fyi_info["command_message_id"])
+            command_message = await fyi_info["chat_channel"].fetch_message(fyi_info["command_message_id"])
         except discord.errors.NotFound:
             command_message = None
 
         try:
-            relay_message = await fyi_info["relay_channel"].get_message(fyi_info["relay_message_id"])
+            relay_message = await fyi_info["relay_channel"].fetch_message(fyi_info["relay_message_id"])
         except discord.errors.NotFound:
             relay_message = None
 
         chat_relay_message = None
         if fyi_info["chat_relay_message_id"] is not None:
             try:
-                chat_relay_message = await fyi_info["chat_channel"].get_message(fyi_info["chat_relay_message_id"])
+                chat_relay_message = await fyi_info["chat_channel"].fetch_message(fyi_info["chat_relay_message_id"])
             except discord.errors.NotFound:
                 chat_relay_message = None
 

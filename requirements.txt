@@ -1,5 +1,5 @@
 yarl == 1.1.1  # seems to break otherwise
-discord.py
+discord.py == 1.2.4
 pyparsing
 awscli
 boto3

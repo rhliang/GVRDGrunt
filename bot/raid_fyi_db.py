@@ -456,8 +456,6 @@ class RaidFYIDB(object):
         timestamp = dateutil.parser.parse(result["timestamp"])
         creator = guild.get_member(result["creator_id"])
 
-        # command_message = await chat_channel.get_message(command_message_id)
-        # relay_message = await relay_channel.get_message(relay_message_id)
         return {
             "chat_channel": chat_channel,
             "command_message_id": command_message_id,
