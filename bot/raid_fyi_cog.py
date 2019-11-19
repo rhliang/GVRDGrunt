@@ -8,7 +8,6 @@ from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
 from datetime import datetime, timezone
 
 from bot.bot_perms_cog import BotPermsChecker
-
 __author__ = 'Richard Liang'
 
 
