@@ -22,6 +22,10 @@
     {
       "AttributeName": "timestamp",
       "AttributeType": "S"
+    },
+    {
+      "AttributeName": "expiry",
+      "AttributeType": "S"
     }
   ],
   "LocalSecondaryIndexes": [
@@ -39,6 +43,22 @@
       ],
       "Projection": {
         "ProjectionType": "KEYS_ONLY"
+      }
+    },
+    {
+      "IndexName": "FYIsByExpiry",
+      "KeySchema": [
+        {
+          "AttributeName": "guild_id",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "expiry",
+          "KeyType": "RANGE"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
       }
     }
   ],

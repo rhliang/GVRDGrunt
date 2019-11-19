@@ -2,6 +2,8 @@ from operator import attrgetter
 from collections import defaultdict
 import discord
 import re
+import io
+import json
 from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
 from datetime import datetime, timezone
 
@@ -585,3 +587,17 @@ Category mappings:
         await self.delete_fyi(payload)
 
     # TOMORROW: what do we do about timing out messages?
+
+    @command(help="Show expired FYIs")
+    async def show_expired_fyis(self, ctx):
+        """
+        Show all of this guild's expired FYIs.
+        :param ctx:
+        :return:
+        """
+        expired_by = datetime.now(timezone.utc)
+        expired_fyis = self.db.get_expired_fyis(ctx.guild, expired_by)
+
+        fyi_json = io.BytesIO(json.dumps(expired_fyis, indent=4).encode("utf8"))
+        await ctx.channel.send(f"{ctx.author.mention} all of this guild's expired FYIs:",
+                               file=fyi_json)

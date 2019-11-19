@@ -55,7 +55,8 @@ def get_all_fyi_configuration(conn):
                 channel_mapping_config = {
                     "guild_id": {"N": str(guild_id)},
                     "config_channel_message": {"S": "chatchannel{}".format(chat_channel_id)},
-                    "relay_channel": {"N": str(fyi_channel_id)}
+                    "relay_channel": {"N": str(fyi_channel_id)},
+                    "timeout_in_hours": {"NULL": True}
                 }
                 guild_channel_mappings.append(channel_mapping_config)
 

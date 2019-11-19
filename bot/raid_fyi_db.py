@@ -24,9 +24,11 @@ from bot.convert_using_guild import emoji_converter
 
 # (guild[guild id], category[category id]):
 # - relay_channel (channel ID)
+# - timeout_in_hours (how long do channels created in this category's FYIs stay "active")
 
 # (guild[guild id], chatchannel[channel id]):
 # - relay_channel (channel ID)
+# - timeout_in_hours (how long do this channel's FYIs stay "active")
 
 # (guild[guild id], channel[channel id]#message[message id])
 # If this message is the original:
@@ -34,7 +36,8 @@ from bot.convert_using_guild import emoji_converter
 # - creator
 # - relay_message (a (channel ID, message ID) pair pointing at the relay message in the relay channel)
 # - chat_relay_message (a (channel ID, message ID) pair pointing at the relay message in the chat channel, or None)
-# - time (datetime of the command -- only on original)
+# - timestamp (datetime of the command -- only on original)
+# - expiry (datetime after which this FYI should be deactivated)
 # - edit_history (all of the edits made to this original post)
 # - interested (a list of member IDs, denoting all who are interested)
 
@@ -232,7 +235,8 @@ class RaidFYIDB(object):
             self,
             guild: discord.Guild,
             chat_channel: discord.TextChannel,
-            fyi_channel: discord.TextChannel
+            fyi_channel: discord.TextChannel,
+            timeout_in_hours: int
     ):
         """
         Register a chat-channel-to-FYI-channel mapping.
@@ -240,13 +244,15 @@ class RaidFYIDB(object):
         :param guild:
         :param chat_channel:
         :param fyi_channel:
+        :param timeout_in_hours:
         :return:
         """
         self.table.put_item(
             Item={
                 "guild_id": guild.id,
                 "config_channel_message": "chatchannel{}".format(chat_channel.id),
-                "relay_channel": fyi_channel.id
+                "relay_channel": fyi_channel.id,
+                "timeout_in_hours": timeout_in_hours
             }
         )
 
@@ -254,7 +260,8 @@ class RaidFYIDB(object):
             self,
             guild: discord.Guild,
             category: discord.CategoryChannel,
-            fyi_channel: discord.TextChannel
+            fyi_channel: discord.TextChannel,
+            timeout_in_hours: int
     ):
         """
         Register a category-to-FYI-channel mapping (e.g. for EX raid channels).
@@ -262,13 +269,15 @@ class RaidFYIDB(object):
         :param guild:
         :param category:
         :param fyi_channel:
+        :param timeout_in_hours:
         :return:
         """
         self.table.put_item(
             Item={
                 "guild_id": guild.id,
                 "config_channel_message": "category{}".format(category.id),
-                "relay_channel": fyi_channel.id
+                "relay_channel": fyi_channel.id,
+                "timeout_in_hours": timeout_in_hours
             }
         )
 
@@ -352,6 +361,7 @@ class RaidFYIDB(object):
             creator: discord.Member,
             fyi_text,
             timestamp,
+            expiry,
             chat_channel: discord.TextChannel,
             command_message_id,
             relay_channel: discord.TextChannel,
@@ -365,6 +375,7 @@ class RaidFYIDB(object):
         :param creator:
         :param fyi_text:
         :param timestamp: a Python datetime object showing the creation time **in UTC**
+        :param expiry: a Python datetime object showing the time after which this FYI is "expired"
         :param chat_channel:
         :param command_message_id:
         :param relay_channel:
@@ -379,6 +390,7 @@ class RaidFYIDB(object):
                     "config_channel_message": channel_message_template.format(chat_channel.id, command_message_id),
                     "creator_id": creator.id,
                     "timestamp": timestamp.isoformat(),
+                    "expiry": expiry.isoformat(),
                     "relay_channel_id": relay_channel.id,
                     "relay_message_id": relay_message_id,
                     "chat_relay_message_id": chat_relay_message_id,
@@ -406,6 +418,43 @@ class RaidFYIDB(object):
                         "relay_or_chat": "chat"
                     }
                 )
+
+    @staticmethod
+    def get_fyi_helper(
+            guild: discord.Guild,
+            fyi_info
+    ):
+        """
+        Helper that produces a dictionary summarizing an FYI given a raw database result.
+        :param guild:
+        :param fyi_info:
+        :return:
+        """
+        chat_channel = guild.get_channel(
+            int(
+                re.match(channel_message_pattern, fyi_info["config_channel_message"]).group(1)
+            )
+        )
+        command_message_id = int(re.match(channel_message_pattern, fyi_info["config_channel_message"]).group(2))
+        relay_channel = guild.get_channel(fyi_info["relay_channel_id"])
+        relay_message_id = fyi_info["relay_message_id"]
+
+        timestamp = dateutil.parser.parse(fyi_info["timestamp"])
+        expiry = dateutil.parser.parse(fyi_info["expiry"])
+        creator = guild.get_member(fyi_info["creator_id"])
+
+        return {
+            "chat_channel": chat_channel,
+            "command_message_id": command_message_id,
+            "relay_channel": relay_channel,
+            "relay_message_id": relay_message_id,
+            "chat_relay_message_id": fyi_info["chat_relay_message_id"],
+            "timestamp": timestamp,
+            "expiry": expiry,
+            "creator": creator,
+            "edit_history": fyi_info["edit_history"],
+            "interested": [guild.get_member(x) for x in fyi_info["interested"]]
+        }
 
     def get_fyi(
             self,
@@ -443,30 +492,7 @@ class RaidFYIDB(object):
                 }
             )
             result = response.get("Item")
-
-        chat_channel = guild.get_channel(
-            int(
-                re.match(channel_message_pattern, result["config_channel_message"]).group(1)
-            )
-        )
-        command_message_id = int(re.match(channel_message_pattern, result["config_channel_message"]).group(2))
-        relay_channel = guild.get_channel(result["relay_channel_id"])
-        relay_message_id = result["relay_message_id"]
-
-        timestamp = dateutil.parser.parse(result["timestamp"])
-        creator = guild.get_member(result["creator_id"])
-
-        return {
-            "chat_channel": chat_channel,
-            "command_message_id": command_message_id,
-            "relay_channel": relay_channel,
-            "relay_message_id": relay_message_id,
-            "chat_relay_message_id": result["chat_relay_message_id"],
-            "timestamp": timestamp,
-            "creator": creator,
-            "edit_history": result["edit_history"],
-            "interested": [guild.get_member(x) for x in result["interested"]]
-        }
+        return self.get_fyi_helper(guild, result)
 
     def update_fyi(
             self,
@@ -565,39 +591,19 @@ class RaidFYIDB(object):
                     }
                 )
 
-    def delete_fyis_older_than(self, guild: discord.Guild, timestamp):
+    def get_expired_fyis(self, guild: discord.Guild, expired_by):
         """
         Retrieve data on all FYIs prior to the specified timestamp, inclusive.
 
         :param guild:
-        :param timestamp: a Python datetime object **in UTC**
+        :param expired_by: a Python datetime object **in UTC**
         :return:
         """
         response = self.table.query(
-            IndexName="FYIsByTime",
-            KeyConditionExpression=Key("guild_id").eq(guild.id) & Key("timestamp").lt(timestamp.isoformat())
+            IndexName="FYIsByExpiry",
+            KeyConditionExpression=Key("guild_id").eq(guild.id) & Key("timestamp").lt(expired_by.isoformat())
         )
-
-        with self.table.batch_writer() as batch:
-            for command_message_record in response["Items"]:
-                channel_message_match = re.match(channel_message_pattern,
-                                                 command_message_record["config_channel_message"])
-                chat_channel_id = int(channel_message_match.group(1))
-                command_message_id = int(channel_message_match.group(2))
-
-                relay_channel_id = command_message_record["relay_channel_id"]
-                relay_message_id = command_message_record["relay_message_id"]
-
-                batch.delete_item(
-                    Key={
-                        "guild_id": guild.id,
-                        "config_channel_message": channel_message_template.format(chat_channel_id, command_message_id)
-                    }
-                )
-                batch.delete_item(
-                    Key={
-                        "guild_id": guild.id,
-                        "config_channel_message": channel_message_template.format(relay_channel_id, relay_message_id)
-                    }
-                )
-
+        expired_fyis = []
+        for fyi_info in response["Items"]:
+            expired_fyis.append(self.get_fyi_helper(guild, fyi_info))
+        return expired_fyis
