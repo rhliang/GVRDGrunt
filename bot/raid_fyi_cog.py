@@ -5,7 +5,7 @@ import re
 import io
 import json
 from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from bot.bot_perms_cog import BotPermsChecker
 __author__ = 'Richard Liang'
@@ -262,19 +262,27 @@ class RaidFYICog(BotPermsChecker, Cog):
         channel_mappings = fyi_info["channel_mappings"]
         if len(channel_mappings) > 0:
             chats_sorted = sorted(channel_mappings.keys(), key=lambda channel: channel.name)
-            mapping_list_str = "\n".join(
-                [f"- {chat} -> {channel_mappings[chat]} (duration {channel_mappings['timeout_in_hours']}h)"
-                 for chat in chats_sorted]
-            )
+            channel_entry_strings = []
+            for chat in chats_sorted:
+                mapping = channel_mappings[chat]
+                duration_str = "(no FYI duration specified)"
+                if mapping["timeout_in_hours"] is not None:
+                    duration_str = f"(FYI duration {mapping['timeout_in_hours']}h)"
+                channel_entry_strings.append(f"- {chat} -> {channel_mappings[chat]['relay_channel']} {duration_str}")
+            mapping_list_str = "\n".join(channel_entry_strings)
 
         category_mapping_str = "(none)"
         category_mappings = fyi_info["category_mappings"]
         if len(category_mappings) > 0:
             categories_sorted = sorted(category_mappings.keys(), key=lambda category: category.name)
-            category_mapping_str = "\n".join(
-                [f"- {category} -> {category_mappings[category]} (duration {category_mappings['timeout_in_hours']}h)"
-                 for category in categories_sorted]
-            )
+            category_entry_strings = []
+            for category in categories_sorted:
+                mapping = category_mappings[category]
+                duration_str = "(no FYI duration specified)"
+                if mapping["timeout_in_hours"] is not None:
+                    duration_str = f"(FYI duration {mapping['timeout_in_hours']}h)"
+                category_entry_strings.append(f"- {category} -> {mapping['relay_channel']} {duration_str}")
+            category_mapping_str = "\n".join(category_entry_strings)
 
         summary_message = f"""\
 {ctx.author.mention}
@@ -380,13 +388,14 @@ Category mappings:
             return
         if ctx.channel not in fyi_info["channel_mappings"]:
             return
+        mapping_info = fyi_info["channel_mappings"][ctx.channel]
 
         stripped_content = self.strip_fyi_message_content(ctx.message)
         if stripped_content is None:
             return
 
         timestamp = datetime.now(timezone.utc)
-        relay_channel = fyi_info["channel_mappings"][ctx.channel]
+        relay_channel = mapping_info["relay_channel"]
         relay_message_text = self.build_relay_message_text(
             ctx.author,
             timestamp,
@@ -401,11 +410,15 @@ Category mappings:
             chat_relay_message = await ctx.channel.send(relay_message_text)
             chat_relay_message_id = chat_relay_message.id
 
+        expiry = None
+        if mapping_info["timeout_in_hours"] is not None:
+            expiry = timestamp + timedelta(hours=mapping_info["timeout_in_hours"])
         self.db.add_fyi(
             ctx.guild,
             creator=ctx.author,
             fyi_text=ctx.message.content,
             timestamp=timestamp,
+            expiry=expiry,
             chat_channel=ctx.channel,
             command_message_id=ctx.message.id,
             relay_channel=relay_channel,

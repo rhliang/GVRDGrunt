@@ -105,7 +105,10 @@ class RaidFYIDB(object):
                                            chat_channel_config["config_channel_message"]).group(1))
             chat_channel = guild.get_channel(chat_channel_id)
             relay_channel = guild.get_channel(chat_channel_config["relay_channel"])
-            channel_mappings[chat_channel] = relay_channel
+            channel_mappings[chat_channel] = {
+                "relay_channel": relay_channel,
+                "timeout_in_hours": chat_channel_config["timeout_in_hours"]
+            }
 
         result["channel_mappings"] = channel_mappings
 
@@ -121,7 +124,10 @@ class RaidFYIDB(object):
             category_id = int(re.match(category_pattern, category_config["config_channel_message"]).group(1))
             category = guild.get_channel(category_id)
             relay_channel = guild.get_channel(category_config["relay_channel"])
-            category_mappings[category] = relay_channel
+            category_mappings[category] = {
+                "relay_channel": relay_channel,
+                "timeout_in_hours": category_config["timeout_in_hours"]
+            }
 
         result["category_mappings"] = category_mappings
         return result
