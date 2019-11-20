@@ -30,6 +30,24 @@ from bot.bot_perms_cog import BotPermsCog
 __author__ = "Richard Liang"
 
 
+class BadBot(commands.Bot):
+    """
+    A subclass of Bot that allows other bots to run its commands.
+
+    This was probably rightfully disabled by discord.py but for now we need it.
+    We'll eliminate it in the future when we implement some more elegant
+    way for another bot to communicate with this bot.
+    """
+    async def process_commands(self, message):
+        """
+        This override of the subclass method allows another bot to run commands.
+        :param message:
+        :return:
+        """
+        ctx = await self.get_context(message)
+        await self.invoke(ctx)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
@@ -42,7 +60,7 @@ def main():
 
     loop = asyncio.get_event_loop()
 
-    gvrd_grunt = commands.Bot(
+    gvrd_grunt = BadBot(
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
         description="A grunt worker for the GVRD servers' needs",
         loop=loop
