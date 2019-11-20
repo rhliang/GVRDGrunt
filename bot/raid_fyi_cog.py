@@ -190,7 +190,7 @@ class RaidFYICog(BotPermsChecker, Cog):
         self.can_configure_bot_validator(ctx)
         await ctx.channel.send(f"{ctx.author.mention} FYIs in all channels in {category} "
                                f"will be posted in {fyi_channel} and time out after {timeout_in_hours} hours.")
-        self.db.register_fyi_category_mapping(ctx.guild, category, fyi_channel)
+        self.db.register_fyi_category_mapping(ctx.guild, category, fyi_channel, timeout_in_hours)
         for channel in category.channels:
             await self.map_chat_to_fyi_helper(
                 ctx.guild,
@@ -243,6 +243,21 @@ class RaidFYICog(BotPermsChecker, Cog):
         """
         self.db.deregister_all_fyi_channel_mappings(ctx.guild)
         await ctx.channel.send(f"{ctx.author.mention} FYIs from all channels will now be ignored.")
+
+    @command(help="De-register FYI functionality for the specified chat channel")
+    async def deregister_fyi_category_mapping(self, ctx, category: discord.CategoryChannel):
+        """
+        Deregister the FYI mapping from a category channel.
+
+        :param ctx:
+        :param category:
+        :return:
+        """
+        self.can_configure_bot_validator(ctx)
+        self.db.deregister_fyi_category_mapping(ctx.guild, category)
+        await ctx.channel.send(
+            f"{ctx.author.mention} New channels created in {category} will no longer "
+            f"be automatically configured for FYIs.")
 
     @command(help="Show FYI configuration", aliases=["show_fyi_config", "show_fyi_settings"])
     async def show_fyi_configuration(self, ctx):
@@ -412,7 +427,7 @@ Category mappings:
 
         expiry = None
         if mapping_info["timeout_in_hours"] is not None:
-            expiry = timestamp + timedelta(hours=mapping_info["timeout_in_hours"])
+            expiry = timestamp + timedelta(hours=int(mapping_info["timeout_in_hours"]))
         self.db.add_fyi(
             ctx.guild,
             creator=ctx.author,
@@ -633,8 +648,41 @@ Category mappings:
     async def on_raw_message_delete(self, payload):
         await self.delete_fyi(payload)
 
+    @staticmethod
+    def serialize_fyi_info(fyi_info, human_readable=False):
+        """
+        Convert a dictionary summarizing an FYI (as returned by RaidFYIDB.get_fyi) into something JSON-serializable.
+        :param fyi_info:
+        :param human_readable:
+        :return:
+        """
+        fyi = {}
+
+        for key in fyi_info:
+            fyi[key] = fyi_info[key]
+
+        fyi["command_message_id"] = int(fyi["command_message_id"])
+        fyi["relay_message_id"] = int(fyi["relay_message_id"])
+        fyi["chat_relay_message_id"] = (int(fyi["chat_relay_message_id"])
+                                        if fyi["chat_relay_message_id"] is not None else None)
+        fyi["timestamp"] = fyi["timestamp"].isoformat()
+        fyi["expiry"] = fyi["expiry"].isoformat()
+
+        if human_readable:
+            fyi["chat_channel"] = fyi["chat_channel"].name
+            fyi["relay_channel"] = fyi["relay_channel"].name
+            fyi["interested"] = [x.display_name for x in fyi["interested"]]
+            fyi["creator"] = fyi["creator"].display_name
+        else:
+            fyi["chat_channel"] = fyi["chat_channel"].id
+            fyi["relay_channel"] = fyi["relay_channel"].id
+            fyi["interested"] = [x.id for x in fyi["interested"]]
+            fyi["creator"] = fyi["creator"].id
+
+        return fyi
+
     @command(help="Show expired FYIs")
-    async def show_expired_fyis(self, ctx):
+    async def get_expired_fyis(self, ctx):
         """
         Show all of this guild's expired FYIs.
         :param ctx:
@@ -643,27 +691,25 @@ Category mappings:
         expired_by = datetime.now(timezone.utc)
         expired_fyis = self.db.get_expired_fyis(ctx.guild, expired_by)
 
-        serializable_fyis = []
+        human_readable = []
+        machine_readable = []
         for fyi in expired_fyis:
-            fyi["chat_channel"] = fyi["chat_channel"].name
-            fyi["command_message_id"] = int(fyi["command_message_id"])
-            fyi["relay_channel"] = fyi["relay_channel"].name
-            fyi["relay_message_id"] = int(fyi["relay_message_id"])
-            fyi["chat_relay_message_id"] = (int(fyi["chat_relay_message_id"])
-                                            if fyi["chat_relay_message_id"] is not None else None)
-            fyi["interested"] = [x.display_name for x in fyi["interested"]]
-            fyi["timestamp"] = fyi["timestamp"].isoformat()
-            fyi["expiry"] = fyi["expiry"].isoformat()
-            fyi["creator"] = fyi["creator"].display_name
-            serializable_fyis.append(fyi)
+            human_readable.append(self.serialize_fyi_info(fyi, True))
+            machine_readable.append(self.serialize_fyi_info(fyi, False))
 
         reply = f"{ctx.author.mention} this guild has no expired FYIs."
-        fyi_json = None
+        jsons = None
         if len(expired_fyis) > 0:
             reply = f"{ctx.author.mention} all of this guild's expired FYIs:"
-            fyi_json = io.BytesIO(json.dumps(serializable_fyis, indent=4).encode("utf8"))
+            jsons = [
+                discord.File(
+                    io.BytesIO(json.dumps(human_readable, indent=4).encode("utf8")),
+                    filename=f"expired_{expired_by.isoformat()}_human_readable.json"
+                ),
+                discord.File(
+                    io.BytesIO(json.dumps(machine_readable, indent=4).encode("utf8")),
+                    filename=f"expired_{expired_by.isoformat()}.json"
+                )
+            ]
         async with ctx.channel.typing():
-            await ctx.channel.send(
-                reply,
-                file=discord.File(fyi_json, filename=f"expired_{expired_by.isoformat()}.json")
-            )
+            await ctx.channel.send(reply, files=jsons)
