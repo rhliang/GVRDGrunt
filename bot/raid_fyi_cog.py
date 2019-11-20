@@ -124,7 +124,8 @@ class RaidFYICog(BotPermsChecker, Cog):
             commander: discord.Member,
             command_channel: discord.TextChannel,
             chat_channel: discord.TextChannel,
-            fyi_channel: discord.TextChannel
+            fyi_channel: discord.TextChannel,
+            timeout_in_hours: int
     ):
         """
         Helper that maps a chat channel to an FYI channel.
@@ -133,40 +134,72 @@ class RaidFYICog(BotPermsChecker, Cog):
         :param command_channel:
         :param chat_channel:
         :param fyi_channel:
+        :param timeout_in_hours:
         :return:
         """
-        self.db.register_fyi_channel_mapping(guild, chat_channel, fyi_channel)
-        await command_channel.send(f"{commander.mention} FYIs from {chat_channel} will be posted in {fyi_channel}.")
+        self.db.register_fyi_channel_mapping(guild, chat_channel, fyi_channel, timeout_in_hours)
+        await command_channel.send(
+            f"{commander.mention} FYIs from {chat_channel} will be posted in {fyi_channel} "
+            f"and time out after {timeout_in_hours} hours."
+        )
 
     @command(help="Map a chat channel to an FYI channel.", aliases=["mapchattofyi"])
-    async def map_chat_to_fyi(self, ctx, chat_channel: discord.TextChannel, fyi_channel: discord.TextChannel):
+    async def map_chat_to_fyi(
+            self,
+            ctx,
+            chat_channel: discord.TextChannel,
+            fyi_channel: discord.TextChannel,
+            timeout_in_hours: int
+    ):
         """
         Create a mapping from a chat channel to an FYI channel.
 
         :param ctx:
         :param chat_channel:
         :param fyi_channel:
+        :param timeout_in_hours:
         :return:
         """
         self.can_configure_bot_validator(ctx)
-        await self.map_chat_to_fyi_helper(ctx.guild, ctx.author, ctx.channel, chat_channel, fyi_channel)
+        await self.map_chat_to_fyi_helper(
+            ctx.guild,
+            ctx.author,
+            ctx.channel,
+            chat_channel,
+            fyi_channel,
+            timeout_in_hours
+        )
 
     @command(help="Map a category to an FYI channel.", aliases=["mapcategorytofyi"])
-    async def map_category_to_fyi(self, ctx, category: discord.CategoryChannel, fyi_channel: discord.TextChannel):
+    async def map_category_to_fyi(
+            self,
+            ctx,
+            category: discord.CategoryChannel,
+            fyi_channel: discord.TextChannel,
+            timeout_in_hours: int
+    ):
         """
         Create a mapping from a category to an FYI channel.
 
         :param ctx:
         :param category:
         :param fyi_channel:
+        :param timeout_in_hours:
         :return:
         """
         self.can_configure_bot_validator(ctx)
         await ctx.channel.send(f"{ctx.author.mention} FYIs in all channels in {category} "
-                               f"will be posted in {fyi_channel}.")
+                               f"will be posted in {fyi_channel} and time out after {timeout_in_hours} hours.")
         self.db.register_fyi_category_mapping(ctx.guild, category, fyi_channel)
         for channel in category.channels:
-            await self.map_chat_to_fyi_helper(ctx.guild, ctx.author, ctx.channel, channel, fyi_channel)
+            await self.map_chat_to_fyi_helper(
+                ctx.guild,
+                ctx.author,
+                ctx.channel,
+                channel,
+                fyi_channel,
+                timeout_in_hours
+            )
 
     async def on_guild_channel_create(self, channel: discord.TextChannel):
         """
@@ -230,7 +263,8 @@ class RaidFYICog(BotPermsChecker, Cog):
         if len(channel_mappings) > 0:
             chats_sorted = sorted(channel_mappings.keys(), key=lambda channel: channel.name)
             mapping_list_str = "\n".join(
-                ["- {} -> {}".format(chat, channel_mappings[chat]) for chat in chats_sorted]
+                [f"- {chat} -> {channel_mappings[chat]} (duration {channel_mappings['timeout_in_hours']}h)"
+                 for chat in chats_sorted]
             )
 
         category_mapping_str = "(none)"
@@ -238,7 +272,8 @@ class RaidFYICog(BotPermsChecker, Cog):
         if len(category_mappings) > 0:
             categories_sorted = sorted(category_mappings.keys(), key=lambda category: category.name)
             category_mapping_str = "\n".join(
-                ["- {} -> {}".format(category, category_mappings[category]) for category in categories_sorted]
+                [f"- {category} -> {category_mappings[category]} (duration {category_mappings['timeout_in_hours']}h)"
+                 for category in categories_sorted]
             )
 
         summary_message = f"""\
@@ -585,8 +620,6 @@ Category mappings:
     async def on_raw_message_delete(self, payload):
         await self.delete_fyi(payload)
 
-    # TOMORROW: what do we do about timing out messages?
-
     @command(help="Show expired FYIs")
     async def show_expired_fyis(self, ctx):
         """
@@ -597,6 +630,10 @@ Category mappings:
         expired_by = datetime.now(timezone.utc)
         expired_fyis = self.db.get_expired_fyis(ctx.guild, expired_by)
 
-        fyi_json = io.BytesIO(json.dumps(expired_fyis, indent=4).encode("utf8"))
-        await ctx.channel.send(f"{ctx.author.mention} all of this guild's expired FYIs:",
-                               file=fyi_json)
+        reply = f"{ctx.author.mention} this guild has no expired FYIs."
+        fyi_json = None
+        if len(expired_fyis) > 0:
+            reply = f"{ctx.author.mention} all of this guild's expired FYIs:"
+            fyi_json = io.BytesIO(json.dumps(expired_fyis, indent=4).encode("utf8"))
+        async with ctx.channel.typing():
+            await ctx.channel.send(reply, file=fyi_json)
