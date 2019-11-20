@@ -643,10 +643,27 @@ Category mappings:
         expired_by = datetime.now(timezone.utc)
         expired_fyis = self.db.get_expired_fyis(ctx.guild, expired_by)
 
+        serializable_fyis = []
+        for fyi in expired_fyis:
+            fyi["chat_channel"] = fyi["chat_channel"].name
+            fyi["command_message_id"] = int(fyi["command_message_id"])
+            fyi["relay_channel"] = fyi["relay_channel"].name
+            fyi["relay_message_id"] = int(fyi["relay_message_id"])
+            fyi["chat_relay_message_id"] = (int(fyi["chat_relay_message_id"])
+                                            if fyi["chat_relay_message_id"] is not None else None)
+            fyi["interested"] = [x.display_name for x in fyi["interested"]]
+            fyi["timestamp"] = fyi["timestamp"].isoformat()
+            fyi["expiry"] = fyi["expiry"].isoformat()
+            fyi["creator"] = fyi["creator"].display_name
+            serializable_fyis.append(fyi)
+
         reply = f"{ctx.author.mention} this guild has no expired FYIs."
         fyi_json = None
         if len(expired_fyis) > 0:
             reply = f"{ctx.author.mention} all of this guild's expired FYIs:"
-            fyi_json = io.BytesIO(json.dumps(expired_fyis, indent=4).encode("utf8"))
+            fyi_json = io.BytesIO(json.dumps(serializable_fyis, indent=4).encode("utf8"))
         async with ctx.channel.typing():
-            await ctx.channel.send(reply, file=fyi_json)
+            await ctx.channel.send(
+                reply,
+                file=discord.File(fyi_json, filename=f"expired_{expired_by.isoformat()}.json")
+            )

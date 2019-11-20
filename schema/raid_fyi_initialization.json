@@ -20,31 +20,11 @@
       "AttributeType": "S"
     },
     {
-      "AttributeName": "timestamp",
-      "AttributeType": "S"
-    },
-    {
       "AttributeName": "expiry",
       "AttributeType": "S"
     }
   ],
   "LocalSecondaryIndexes": [
-    {
-      "IndexName": "FYIsByTime",
-      "KeySchema": [
-        {
-          "AttributeName": "guild_id",
-          "KeyType": "HASH"
-        },
-        {
-          "AttributeName": "timestamp",
-          "KeyType": "RANGE"
-        }
-      ],
-      "Projection": {
-        "ProjectionType": "KEYS_ONLY"
-      }
-    },
     {
       "IndexName": "FYIsByExpiry",
       "KeySchema": [

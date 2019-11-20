@@ -607,7 +607,7 @@ class RaidFYIDB(object):
         """
         response = self.table.query(
             IndexName="FYIsByExpiry",
-            KeyConditionExpression=Key("guild_id").eq(guild.id) & Key("timestamp").lt(expired_by.isoformat())
+            KeyConditionExpression=Key("guild_id").eq(guild.id) & Key("expiry").lt(expired_by.isoformat())
         )
         expired_fyis = []
         for fyi_info in response["Items"]:
