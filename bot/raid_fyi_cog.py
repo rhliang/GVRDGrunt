@@ -64,7 +64,7 @@ class RaidFYICog(BotPermsChecker, Cog):
         :return:
         """
         self.can_configure_bot_validator(ctx)
-        self.db.deactivate_fyi(ctx.guild)
+        self.db.deactivate_guild_fyi(ctx.guild)
         await ctx.channel.send(f"{ctx.author.mention} Raid FYI functionality is now disabled.")
 
     @command(
@@ -535,7 +535,7 @@ Category mappings:
         guild_fyi_info = self.db.get_fyi_info(guild)
         fyi_info = self.db.get_fyi(guild, guild.get_channel(payload.channel_id), payload.message_id)
         # Do nothing if this isn't an active FYI.
-        if guild_fyi_info is None or not guild_fyi_info["enhanced"] or fyi_info is None:
+        if guild_fyi_info is None or not guild_fyi_info["enhanced"] or fyi_info is None or not fyi_info["active"]:
             return
         await self.update_fyi_helper(guild, fyi_info, guild_fyi_info["timezone"])
 
@@ -558,7 +558,7 @@ Category mappings:
         guild_fyi_info = self.db.get_fyi_info(guild)
         fyi_info = self.db.get_fyi(guild, edited_message_channel, payload.message_id)
         # Do nothing if this isn't an active FYI, or if this is the relay message.
-        if guild_fyi_info is None or fyi_info is None:
+        if guild_fyi_info is None or fyi_info is None or not fyi_info["active"]:
             return
 
         # Do nothing if this is a relay message (as this is edited by the bot).
@@ -593,18 +593,27 @@ Category mappings:
     async def on_raw_message_edit(self, payload):
         await self.update_fyi_edited(payload)
 
-    async def delete_fyi(self, payload):
+    async def deactivate_fyi(
+            self,
+            guild: discord.Guild,
+            channel: discord.TextChannel,
+            message_id,
+            cancellation=False
+    ):
         """
-        Delete an FYI (this removes it from the database also).
+        Deactivate an FYI.
 
-        :param payload:
+        This does not remove it from the database, it only marks it as inactive.
+
+        :param guild:
+        :param channel:
+        :param message_id:
+        :param cancellation: True if this is because the FYI was cancelled; False otherwise (i.e. it expired)
         :return:
         """
-        guild = self.bot.get_guild(payload.guild_id)
-        channel = guild.get_channel(payload.channel_id)
         guild_fyi_info = self.db.get_fyi_info(guild)
-        fyi_info = self.db.get_fyi(guild, channel, payload.message_id)
-        if fyi_info is None:
+        fyi_info = self.db.get_fyi(guild, channel, message_id)
+        if guild_fyi_info is None or fyi_info is None or not fyi_info["active"]:
             return
 
         try:
@@ -624,29 +633,40 @@ Category mappings:
             except discord.errors.NotFound:
                 chat_relay_message = None
 
-        # Strike out any relay messages that are remaining.
-        for relay_message in [x for x in [relay_message, chat_relay_message] if x is not None]:
-            prior_content = relay_message.content
-            await relay_message.edit(content="~~{}~~".format(prior_content))
+        if cancellation:
+            # Strike out any relay messages that are remaining.
+            for relay_message in [x for x in [relay_message, chat_relay_message] if x is not None]:
+                prior_content = relay_message.content
+                await relay_message.edit(content="~~{}~~".format(prior_content))
 
-        # Add the guild's "cancelled" emoji to any messages that are remaining.
-        for fyi_message in [x for x in [command_message, relay_message, chat_relay_message] if x is not None]:
-            await fyi_message.add_reaction(guild_fyi_info["cancelled_emoji"])
+            # Add the guild's "cancelled" emoji to any messages that are remaining.
+            for fyi_message in [x for x in [command_message, relay_message, chat_relay_message] if x is not None]:
+                await fyi_message.add_reaction(guild_fyi_info["cancelled_emoji"])
 
-        # Send a ping to all who were interested.
-        audience = set(fyi_info["interested"] + [fyi_info["creator"]])
-        if len(audience) != 0:
-            audience_str = " ".join([x.mention for x in audience])
-            inset_fyi_text = "> " + fyi_info["edit_history"][-1].replace("\n", "\n> ")
-            deletion_ping = (f"{audience_str} the FYI you were interested in has been removed:\n"
-                             f"{inset_fyi_text}")
-            await fyi_info["chat_channel"].send(deletion_ping)
+            # Send a ping to all who were interested.
+            audience = set(fyi_info["interested"] + [fyi_info["creator"]])
+            if len(audience) != 0:
+                audience_str = " ".join([x.mention for x in audience])
+                inset_fyi_text = "> " + fyi_info["edit_history"][-1].replace("\n", "\n> ")
+                deletion_ping = (f"{audience_str} the FYI you were interested in has been removed:\n"
+                                 f"{inset_fyi_text}")
+                await fyi_info["chat_channel"].send(deletion_ping)
 
-        self.db.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
+        self.db.deactivate_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload):
-        await self.delete_fyi(payload)
+        guild = self.bot.get_guild(payload.guild_id)
+        channel = guild.get_channel(payload.channel_id)
+        await self.deactivate_fyi(guild, channel, payload.message_id, cancellation=True)
+
+    @Cog.listener()
+    async def on_bulk_raw_message_delete(self, payload):
+        guild = self.bot.get_guild(payload.guild_id)
+        channel = guild.get_channel(payload.channel_id)
+        matching_fyis = self.db.look_for_fyis(guild, channel, payload.message_ids)
+        for fyi_info in matching_fyis:
+            await self.deactivate_fyi(guild, channel, fyi_info["command_message_id"], cancellation=False)
 
     @staticmethod
     def serialize_fyi_info(fyi_info, human_readable=False):
@@ -713,3 +733,38 @@ Category mappings:
             ]
         async with ctx.channel.typing():
             await ctx.channel.send(reply, files=jsons)
+
+    @command(help="Show expired FYIs")
+    async def get_inactive_fyis(self, ctx):
+        """
+        Show all of this guild's inactive FYIs.
+        :param ctx:
+        :return:
+        """
+        inactive_fyis = self.db.get_inactive_fyis(ctx.guild)
+
+        human_readable = []
+        machine_readable = []
+        for fyi in inactive_fyis:
+            human_readable.append(self.serialize_fyi_info(fyi, True))
+            machine_readable.append(self.serialize_fyi_info(fyi, False))
+
+        reply = f"{ctx.author.mention} this guild has no inactive FYIs."
+        jsons = None
+        if len(inactive_fyis) > 0:
+            reply = f"{ctx.author.mention} all of this guild's inactive FYIs:"
+            jsons = [
+                discord.File(
+                    io.BytesIO(json.dumps(human_readable, indent=4).encode("utf8")),
+                    filename=f"inactive_human_readable.json"
+                ),
+                discord.File(
+                    io.BytesIO(json.dumps(machine_readable, indent=4).encode("utf8")),
+                    filename=f"inactive.json"
+                )
+            ]
+        async with ctx.channel.typing():
+            await ctx.channel.send(reply, files=jsons)
+
+# TOMORROW: work on deactivating FYIs gracefully (background task), and also on purged FYIs (i.e. bulk delete)
+# We may need a new index in order to get all channel IDs etc.

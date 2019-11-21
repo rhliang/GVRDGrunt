@@ -1,5 +1,5 @@
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 import discord
 import re
 import dateutil
@@ -40,6 +40,7 @@ from bot.convert_using_guild import emoji_converter
 # - expiry (datetime after which this FYI should be deactivated)
 # - edit_history (all of the edits made to this original post)
 # - interested (a list of member IDs, denoting all who are interested)
+# - active (Boolean)
 
 # If this message is a relay:
 # - command_message (a (channel ID, message ID) pair pointing to the original command message -- only on relays)
@@ -166,7 +167,7 @@ class RaidFYIDB(object):
             }
         )
 
-    def deactivate_fyi(self, guild: discord.Guild):
+    def deactivate_guild_fyi(self, guild: discord.Guild):
         """
         Disable the guild's FYI functionality by removing its configuration from the database.
 
@@ -401,7 +402,8 @@ class RaidFYIDB(object):
                     "relay_message_id": relay_message_id,
                     "chat_relay_message_id": chat_relay_message_id,
                     "edit_history": [fyi_text],
-                    "interested": []
+                    "interested": [],
+                    "active": True
                 }
             )
             batch.put_item(
@@ -459,7 +461,8 @@ class RaidFYIDB(object):
             "expiry": expiry,
             "creator": creator,
             "edit_history": fyi_info["edit_history"],
-            "interested": [guild.get_member(x) for x in fyi_info["interested"]]
+            "interested": [guild.get_member(x) for x in fyi_info["interested"]],
+            "active": fyi_info["active"]\
         }
 
     def get_fyi(
@@ -541,6 +544,38 @@ class RaidFYIDB(object):
             }
         )
 
+    def deactivate_fyi(
+            self,
+            guild: discord.Guild,
+            channel: discord.TextChannel,
+            message_id
+    ):
+        """
+        Mark this FYI as cancelled.
+
+        This message refers to the original (*not* (either of) the relay(s)).
+
+        :param guild:
+        :param channel:
+        :param message_id:
+        :return:
+        """
+        # Retrieve the existing record to get at the edit history.
+        fyi_prior_to_update = self.get_fyi(guild, channel, message_id)
+        if fyi_prior_to_update is None:
+            raise ValueError("Could not find an FYI to cancel with guild {}, channel {}, message ID {}")
+
+        self.table.update_item(
+            Key={
+                "guild_id": guild.id,
+                "config_channel_message": channel_message_template.format(channel.id, message_id)
+            },
+            UpdateExpression="SET active = :active",
+            ExpressionAttributeValues={
+                ":active": False
+            }
+        )
+
     def delete_fyi(
             self,
             guild: discord.Guild,
@@ -599,7 +634,7 @@ class RaidFYIDB(object):
 
     def get_expired_fyis(self, guild: discord.Guild, expired_by):
         """
-        Retrieve data on all FYIs prior to the specified timestamp, inclusive.
+        Retrieve data on all FYIs expired prior to the specified timestamp, exclusive.
 
         :param guild:
         :param expired_by: a Python datetime object **in UTC**
@@ -613,3 +648,54 @@ class RaidFYIDB(object):
         for fyi_info in response["Items"]:
             expired_fyis.append(self.get_fyi_helper(guild, fyi_info))
         return expired_fyis
+
+    def get_inactive_fyis(self, guild: discord.Guild):
+        """
+        Retrieve data on all FYIs prior to the specified timestamp, inclusive.
+
+        :param guild:
+        :param expired_by: a Python datetime object **in UTC**
+        :return:
+        """
+        response = self.table.query(
+            IndexName="FYIsByExpiry",
+            KeyConditionExpression=Key("guild_id").eq(guild.id),
+            FilterExpression=Attr("active").eq(False)
+        )
+        inactive_fyis = []
+        for fyi_info in response["Items"]:
+            inactive_fyis.append(self.get_fyi_helper(guild, fyi_info))
+        return inactive_fyis
+
+    def look_for_fyis(
+            self,
+            guild: discord.Guild,
+            channel: discord.TextChannel,
+            message_ids
+    ):
+        """
+        Look for FYIs corresponding to any of the given message IDs.
+
+        These may be either the original command message or (either of) the relay message(s).
+
+        :param guild:
+        :param channel:
+        :param message_ids:
+        :return:
+        """
+        hash_key_condition = Key("config_channel_message").begins_with(
+            channel_message_template.format(channel.id, "")
+        )
+        response = self.table.query(
+            KeyConditionExpression=Key("guild_id").eq(guild.id) & hash_key_condition
+        )
+        if response["Items"] is None:
+            return []
+
+        keys_to_look_for = [channel_message_template.format(channel.id, x) for x in message_ids]
+        matching_fyis = []
+        for fyi_info in response["Items"]:
+            if fyi_info["config_channel_message"] in keys_to_look_for:
+                matching_fyis.append(self.get_fyi_helper(guild, fyi_info))
+
+        return matching_fyis
