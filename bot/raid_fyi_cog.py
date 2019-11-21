@@ -5,6 +5,7 @@ import re
 import io
 import json
 from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
+from discord.ext import tasks
 from datetime import datetime, timezone, timedelta
 
 from bot.bot_perms_cog import BotPermsChecker
@@ -766,5 +767,10 @@ Category mappings:
         async with ctx.channel.typing():
             await ctx.channel.send(reply, files=jsons)
 
-# TOMORROW: work on deactivating FYIs gracefully (background task), and also on purged FYIs (i.e. bulk delete)
-# We may need a new index in order to get all channel IDs etc.
+    @tasks.loop(hours=24)
+    async def clean_up_fyis(self):
+        """
+        Background task that cleans up all expired and inactive FYIs.
+        :return:
+        """
+        pass
