@@ -65,14 +65,13 @@ class GuildLoggingCog(Cog):
         self.db.clear_guild_logging(ctx.guild)
         await ctx.message.channel.send(f"{ctx.author.mention} Logging is disabled for this guild.")
 
-    async def log_to_channel(self, guild, message_string):
+    async def log_to_channel(self, guild, *args, **kwargs):
         """
         Send a log message to the guild's logging channel.
 
         If logging is not configured, do nothing.
 
         :param guild:
-        :param message_string:
         :return:
         """
         logging_info = self.db.get_logging_info(guild)
@@ -80,4 +79,4 @@ class GuildLoggingCog(Cog):
             return
 
         log_channel = guild.get_channel(logging_info["log_channel_id"])
-        await log_channel.send(message_string)
+        await log_channel.send(*args, **kwargs)
