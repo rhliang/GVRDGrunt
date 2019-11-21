@@ -767,10 +767,68 @@ Category mappings:
         async with ctx.channel.typing():
             await ctx.channel.send(reply, files=jsons)
 
-    @tasks.loop(hours=24)
+    @tasks.loop(hours=1)
     async def clean_up_fyis(self):
         """
         Background task that cleans up all expired and inactive FYIs.
         :return:
         """
-        pass
+        expired_by = datetime.now(timezone.utc)
+        for guild in self.bot.guilds:
+            expired_fyis = self.db.get_expired_fyis(guild, expired_by)
+            inactive_fyis = self.db.get_inactive_fyis(guild)
+
+            expired = {
+                "human": [self.serialize_fyi_info(x, True) for x in expired_fyis],
+                "machine": [self.serialize_fyi_info(x, False) for x in expired_fyis]
+            }
+            inactive = {
+                "human": [self.serialize_fyi_info(x, True) for x in inactive_fyis],
+                "machine": [self.serialize_fyi_info(x, False) for x in inactive_fyis]
+            }
+
+            if self.logging_cog is not None:
+                jsons = []
+                if len(expired_fyis) > 0:
+                    jsons.extend(
+                            [
+                            discord.File(
+                                io.BytesIO(json.dumps(expired["human"], indent=4).encode("utf8")),
+                                filename=f"expired_{expired_by.isoformat()}_human_readable.json"
+                            ),
+                            discord.File(
+                                io.BytesIO(json.dumps(expired["machine"], indent=4).encode("utf8")),
+                                filename=f"expired_{expired_by.isoformat()}.json"
+                            )
+                        ]
+                    )
+                if len(inactive_fyis) > 0:
+                    jsons.extend(
+                        [
+                            discord.File(
+                                io.BytesIO(json.dumps(inactive["human"], indent=4).encode("utf8")),
+                                filename=f"inactive_human_readable.json"
+                            ),
+                            discord.File(
+                                io.BytesIO(json.dumps(inactive["machine"], indent=4).encode("utf8")),
+                                filename=f"inactive.json"
+                            )
+                        ]
+                    )
+
+                if len(jsons) > 0:
+                    types_to_report_str = "expired and inactive"
+                    if len(expired_fyis) > 0 and len(inactive_fyis) == 0:
+                        types_to_report_str = "expired"
+                    elif len(expired_fyis) == 0 and len(inactive_fyis) > 0:
+                        types_to_report_str = "inactive"
+
+                    await self.logging_cog.log_to_channel(
+                        guild,
+                        content=f"Cleaning up the following {types_to_report_str} FYIs....",
+                        files=jsons
+                    )
+
+            # Now actually clean up the FYIs.
+            for fyi_info in expired_fyis + inactive_fyis:
+                self.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
