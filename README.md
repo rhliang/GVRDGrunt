@@ -12,6 +12,8 @@ Installation
 * `python -m pip install -r requirements.txt`
 * Copy `gvrd_grunt_config_example.json` to `gvrd_grunt_config.json` and fill it out
 * Initialize the guild information DB using the SQL in `schema` and put it at the location specified in the config file
+* Create a DynamoDB database and initialize it using the JSON files in `schema`, making sure to put your credentials
+in the config file
 * `python -m bot`
     * `--debug` for debug-level logging
     * `--config [JSON config file]` to use a different config file than `./gvrd_grunt_config.json`
