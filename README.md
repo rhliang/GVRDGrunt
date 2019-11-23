@@ -22,6 +22,11 @@ In the configuration file, you must set the following:
 * `sqlite_db`: absolute path to the SQLite database file
 * `command_prefix`: the bot will only recognize messages that start with this prefix as commands (for GVRD we use ".")
 * `log_file`: absolute path to the log file
+* `endpoint_url`: address of the Amazon DynamoDB service to use (useful if running the local development version)
+* `aws_access_key_id`: DynamoDB credentials
+* `aws_secret_access_key` DynamoDB credentials
+* `fyi_clean_up_hours`, `fyi_clean_up_minutes`, `fyi_clean_up_seconds`: sets the time interval between the times
+the bot cleans up FYIs
 
 The preferred deployment method for GVRDGrunt is via Docker.  The provided Dockerfile is configured to
 look for the JSON configuration file inside the container at `/config/gvrd_grunt_config.json`, so make sure 
@@ -40,6 +45,41 @@ Also note that if you're deploying the main GVRD bot, the command prefix is `.`,
 described below must be prefaced with that.
 
 GVRDGrunt provides the following services to guilds that it's deployed on.
+
+Bot permissions
+---------------
+
+Initially, GVRDGrunt required an administrator user to perform most configuration.  However, the plan is to
+slowly convert the functionality of the bot to something more liberal, where the administrator user can
+grant bot configuration permissions to a given role (or several roles).  In this document, we'll call any
+such module a "new-style" module.  The following commands are used to configure this.
+
+So far, the modules that respect this are:
+* this module itself
+* the FYI module
+
+### Configuring bot permissions
+
+##### `get_bot_permissions`
+Returns a summary of the roles that can run bot configuration commands (for "new-style" modules of the bot).
+This has the new-style permissions and can be run by an administrator or by anyone who has a role that has been
+granted bot configuration permissions. 
+
+##### `add_bot_permissions [role]`
+Grants the bot configuration permissions to the specified role.  (This must be run by an administrator.)
+
+You can also use `make_bot_admin` as an alias for this command.
+
+##### `remove_bot_permissions [role]`
+Removes the bot configuration permissions from the specified role.  (This must be run by an administrator.)
+
+You can also use `revoke_bot_admin` as an alias for this command.
+
+##### `reset_bot_permissions`
+Removes bot configuration permissions for all roles so that only an administrator can configure the bot.
+(This must also be run by an administrator.)
+
+You can also use `reset_bot_perms` as an alias for this command.
 
 Verification
 ------------
@@ -399,20 +439,37 @@ Raid FYIs
 ---------
 
 This allows members to announce raids (ideally -- this may easily be abused) with a command in a chat channel.
-The FYI will be posted in a specified FYI channel.  All commands except `.fyi` and `.show_fyi_configuration`
-require `Administrator` privileges.
+The FYI will be posted in a specified FYI channel.  All commands except `.fyi` use the new-style permissions.
 
-##### `.configure_fyi [FYI emoji]` (or `activate_fyi` or `enable_fyi`)
-Configures the raid FYI functionality for this guild.  All this does is specify what emoji will be added to the
-`.fyi` command message to signify that the message has been "announced" in the FYI channel.
+"Enhanced FYI" functionality allows users to respond to an FYI with an emoji to mark their interest.  This will
+then be reflected in the relay message(s).  If and when an FYI is edited or deleted, interested users will receive
+a ping.
+
+##### `.configure_fyi [FYI emoji] [guild timezone as understood by pytz]` (or `activate_fyi` or `enable_fyi`)
+Configures the raid FYI functionality for this guild.  The FYI emoji is what will be added to the
+`.fyi` command message to signify that the message has been "announced" in the FYI channel.  The guild timezone
+is a string that must be understood by the `timezone` method of `pytz` (http://pytz.sourceforge.net/); here is a
+list of many of the strings that can be used: https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568
 
 ##### `.disable_fyi` (or `deactivate_fyi`)
 Disables FYI functionality for this guild by removing the configuration information from the database.  Note
 that this does not remove the channel mappings, so if you disable and reenable the functionality, all the same
 mappings will still be in place.
 
-##### `.map_chat_to_fyi [chat channel] [FYI channel]` (or `mapchattofyi`)
+##### `.configure_enhanced_fyi [RSVP emoji] [cancelled emoji] [relay to chat (true/false)]`
+Configures the *enhanced* FYI functionality for this guild.  The RSVP emoji will be added to the command
+as well as the relays, and users can click on this (or add their own emoji if they have the permissions) to 
+denote their interest in the raid.  The "cancelled emoji" will be added to them if the FYI is cancelled (e.g.
+the original poster or a moderator deletes the message).  You can optionally post a "relay" message to the
+chat channel itself in addition to the FYI channel; specify whether you want this with either "true" or "false".
+
+You may use `.activate_enhanced_fyi` or `.enable_enhanced_fyi` as aliases.
+
+##### `.map_chat_to_fyi [chat channel] [FYI channel] [timeout in hours]` (or `mapchattofyi`)
 Configures FYI functionality for the specified chat channel; FYIs will be posted to the specified FYI channel.
+They will be marked as "expired" after the specified number of hours, after which they should be cleaned up
+by the bot and no longer respond to edits or reactions (though they will remain "active" until they are properly
+reaped by the bot.)
 
 ##### `.deregister_fyi_mapping [chat channel]`
 De-registers the FYI mapping for the specified chat channel; FYIs posted to this channel will be ignored.
@@ -420,9 +477,32 @@ De-registers the FYI mapping for the specified chat channel; FYIs posted to this
 ##### `.deregister_all_fyi_mappings`
 De-registers all FYI mappings for this guild.
 
+##### `.map_category_to_fyi [category channel] [FYI channel] [timeout in hours]` (or `mapchattofyi`)
+Configures FYI functionality for the specified category; FYIs will be posted to the specified FYI channel, and
+time out after the specified number of hours.  Calling this command does two things: first, any channel in the
+category will be configured for FYI functionality; second, any new channels created in this category will 
+automatically be configured for FYI functionality with the same settings.
+
+##### `.deregister_fyi_category_mapping [category]`
+De-registers the FYI mapping for the specified category.  *Note that this does not deactivate FYI mappings for all
+of the channels in the category, nor any channels that were configured by being created as part of this category!*
+
 ##### `.show_fyi_configuration`
 Show all FYI functionality configuration for this guild.  This does not require `Administrator` privileges, only 
 `Manage Nicknames`.
+
+##### `.get_inactive_fyis`
+Return JSON files, both human-readable and machine-readable, containing all of this guild's inactive FYIs (i.e.
+cancelled FYIs.)
+
+##### `.get_expired_fyis`
+Return JSON files, both human-readable and machine-readable, containing all of this guild's expired FYIs; that is,
+FYIs older than the specified timeout period from their creation.  These are the FYIs that are eligible to be 
+cleaned up (i.e. removed from the database and no longer tracked for edits or reactions.)
+
+##### `.clean_up_fyis`
+Returns the same stuff as `.get_expired_fyis` but also subsequently cleans up those FYIs.  Note that this is
+also periodically done automatically by the bot, so you should normally not need to do this manually.
 
 ##### `.fyi [fyi text]`
 This command is the actual FYI command.  Everything after `.fyi` will be posted to the corresponding FYI channel.
