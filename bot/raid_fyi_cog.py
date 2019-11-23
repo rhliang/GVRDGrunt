@@ -34,15 +34,15 @@ class RaidFYICog(BotPermsChecker, Cog):
         super(RaidFYICog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
         self.db = db  # a RaidFYIDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
-        self.clean_up_fyis.change_interval(
+        self.clean_up_fyis_loop.change_interval(
             hours=clean_up_hours,
             minutes=clean_up_minutes,
             seconds=clean_up_seconds
         )
-        self.clean_up_fyis.start()
+        self.clean_up_fyis_loop.start()
 
     def cog_unload(self):
-        self.clean_up_fyis.cancel()
+        self.clean_up_fyis_loop.cancel()
 
     @command(
         help="Configure raid FYI functionality.",
@@ -682,7 +682,7 @@ Category mappings:
         await self.deactivate_fyi(guild, channel, payload.message_id, cancellation=True)
 
     @Cog.listener()
-    async def on_bulk_raw_message_delete(self, payload):
+    async def on_raw_bulk_message_delete(self, payload):
         guild = self.bot.get_guild(payload.guild_id)
         channel = guild.get_channel(payload.channel_id)
         matching_fyis = self.db.look_for_fyis(guild, channel, payload.message_ids)
@@ -752,10 +752,10 @@ Category mappings:
             human_readable.append(self.serialize_fyi_info(fyi, True))
             machine_readable.append(self.serialize_fyi_info(fyi, False))
 
-        reply = f"{ctx.author.mention} this guild has no inactive FYIs."
+        reply = f"{ctx.author.mention} This guild has no inactive FYIs."
         jsons = None
         if len(inactive_fyis) > 0:
-            reply = f"{ctx.author.mention} all of this guild's inactive FYIs:"
+            reply = f"{ctx.author.mention} All of this guild's inactive FYIs:"
             jsons = [
                 self.make_discord_file_from_json(
                     human_readable,
@@ -822,18 +822,19 @@ Category mappings:
         if message_coro is not None:
             await message_coro(message_to_send, files=jsons)
 
-        if message_coro is not None:
-            await message_coro("Cleaning up...")
-        # Now actually clean up the FYIs.
-        try:
-            for fyi_info in expired_fyis:
-                self.db.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
+        if len(expired_fyis) > 0:
             if message_coro is not None:
-                await message_coro("... done.")
-        except BotoCoreError as e:
-            if message_coro is not None:
-                await message_coro(f"There was a database error while deleting these FYIs:\n{str(e)}")
-            raise
+                await message_coro("Cleaning up...")
+            # Now actually clean up the FYIs.
+            try:
+                for fyi_info in expired_fyis:
+                    self.db.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
+                if message_coro is not None:
+                    await message_coro("... done.")
+            except BotoCoreError as e:
+                if message_coro is not None:
+                    await message_coro(f"There was a database error while deleting these FYIs:\n{str(e)}")
+                raise
 
     @command(help="Clean up expired and inactive FYIs.")
     async def clean_up_fyis(self, ctx):
@@ -845,7 +846,7 @@ Category mappings:
         await self.clean_up_fyis_helper(ctx.guild, ctx.channel.send, caller=ctx.author)
 
     @tasks.loop()  # set a proper loop interval at initialization
-    async def clean_up_fyis(self):
+    async def clean_up_fyis_loop(self):
         """
         Background task that cleans up all expired and inactive FYIs.
         :return:
@@ -857,6 +858,6 @@ Category mappings:
                     await self.logging_cog.log_to_channel(guild, *args, **kwargs)
             await self.clean_up_fyis_helper(guild, guild_logging_coro, caller=None)
 
-    @clean_up_fyis.before_loop
+    @clean_up_fyis_loop.before_loop
     async def before_clean_up_fyis(self):
         await self.bot.wait_until_ready()

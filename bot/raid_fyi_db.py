@@ -427,8 +427,8 @@ class RaidFYIDB(object):
                     }
                 )
 
-    @staticmethod
     def get_fyi_helper(
+            self,
             guild: discord.Guild,
             fyi_info
     ):
@@ -438,6 +438,17 @@ class RaidFYIDB(object):
         :param fyi_info:
         :return:
         """
+        # Check if this is the command or the relay.
+        if "creator_id" not in fyi_info:
+            response = self.table.get_item(
+                Key={
+                    "guild_id": guild.id,
+                    "config_channel_message": channel_message_template.format(fyi_info["chat_channel_id"],
+                                                                              fyi_info["command_message_id"])
+                }
+            )
+            fyi_info = response.get("Item")
+
         chat_channel = guild.get_channel(
             int(
                 re.match(channel_message_pattern, fyi_info["config_channel_message"]).group(1)
@@ -462,7 +473,7 @@ class RaidFYIDB(object):
             "creator": creator,
             "edit_history": fyi_info["edit_history"],
             "interested": [guild.get_member(x) for x in fyi_info["interested"]],
-            "active": fyi_info["active"]\
+            "active": fyi_info["active"]
         }
 
     def get_fyi(
@@ -490,17 +501,6 @@ class RaidFYIDB(object):
         result = response.get("Item")
         if result is None:
             return
-
-        # Check if this is the command or the relay.
-        if "creator_id" not in result:
-            response = self.table.get_item(
-                Key={
-                    "guild_id": guild.id,
-                    "config_channel_message": channel_message_template.format(result["chat_channel_id"],
-                                                                              result["command_message_id"])
-                }
-            )
-            result = response.get("Item")
         return self.get_fyi_helper(guild, result)
 
     def update_fyi(
