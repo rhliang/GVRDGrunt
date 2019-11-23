@@ -98,7 +98,17 @@ def main():
 
     # These have been converted to check bot perms under the new scheme.
     gvrd_grunt.add_cog(BotPermsCog(gvrd_grunt, bot_perms_db))
-    gvrd_grunt.add_cog(RaidFYICog(gvrd_grunt, raid_fyi_db, bot_perms_db, logging_cog=logging_cog))
+    gvrd_grunt.add_cog(
+        RaidFYICog(
+            gvrd_grunt,
+            raid_fyi_db,
+            settings["fyi_clean_up_hours"],
+            settings["fyi_clean_up_minutes"],
+            settings["fyi_clean_up_seconds"],
+            bot_perms_db,
+            logging_cog=logging_cog
+        )
+    )
 
     # For testing only -- *do not install on a production bot!*
     # gvrd_grunt.add_cog(SpamCog())

@@ -1,12 +1,14 @@
 from operator import attrgetter
 from collections import defaultdict
-import discord
 import re
 import io
 import json
+from datetime import datetime, timezone, timedelta
+
+import discord
 from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
 from discord.ext import tasks
-from datetime import datetime, timezone, timedelta
+from botocore.exceptions import BotoCoreError
 
 from bot.bot_perms_cog import BotPermsChecker
 __author__ = 'Richard Liang'
@@ -19,10 +21,28 @@ class RaidFYICog(BotPermsChecker, Cog):
     When the .fyi command is issued in a chat channel, the remainder of the message is relayed to
     a corresponding RSVP channel.
     """
-    def __init__(self, bot, db, bot_permissions_db, logging_cog=None):
+    def __init__(
+            self,
+            bot,
+            db,
+            clean_up_hours,
+            clean_up_minutes,
+            clean_up_seconds,
+            bot_permissions_db,
+            logging_cog=None
+    ):
         super(RaidFYICog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
         self.db = db  # a RaidFYIDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
+        self.clean_up_fyis.change_interval(
+            hours=clean_up_hours,
+            minutes=clean_up_minutes,
+            seconds=clean_up_seconds
+        )
+        self.clean_up_fyis.start()
+
+    def cog_unload(self):
+        self.clean_up_fyis.cancel()
 
     @command(
         help="Configure raid FYI functionality.",
@@ -702,38 +722,19 @@ Category mappings:
 
         return fyi
 
-    @command(help="Show expired FYIs")
-    async def get_expired_fyis(self, ctx):
+    @staticmethod
+    def make_discord_file_from_json(fileify_me, filename):
         """
-        Show all of this guild's expired FYIs.
-        :param ctx:
+        Helper that takes a serializable Python object and converts it into a JSON discord.File object.
+
+        :param fileify_me:
+        :param filename:
         :return:
         """
-        expired_by = datetime.now(timezone.utc)
-        expired_fyis = self.db.get_expired_fyis(ctx.guild, expired_by)
-
-        human_readable = []
-        machine_readable = []
-        for fyi in expired_fyis:
-            human_readable.append(self.serialize_fyi_info(fyi, True))
-            machine_readable.append(self.serialize_fyi_info(fyi, False))
-
-        reply = f"{ctx.author.mention} this guild has no expired FYIs."
-        jsons = None
-        if len(expired_fyis) > 0:
-            reply = f"{ctx.author.mention} all of this guild's expired FYIs:"
-            jsons = [
-                discord.File(
-                    io.BytesIO(json.dumps(human_readable, indent=4).encode("utf8")),
-                    filename=f"expired_{expired_by.isoformat()}_human_readable.json"
-                ),
-                discord.File(
-                    io.BytesIO(json.dumps(machine_readable, indent=4).encode("utf8")),
-                    filename=f"expired_{expired_by.isoformat()}.json"
-                )
-            ]
-        async with ctx.channel.typing():
-            await ctx.channel.send(reply, files=jsons)
+        return discord.File(
+            io.BytesIO(json.dumps(fileify_me, indent=4).encode("utf8")),
+            filename=filename
+        )
 
     @command(help="Show expired FYIs")
     async def get_inactive_fyis(self, ctx):
@@ -742,6 +743,7 @@ Category mappings:
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         inactive_fyis = self.db.get_inactive_fyis(ctx.guild)
 
         human_readable = []
@@ -755,80 +757,106 @@ Category mappings:
         if len(inactive_fyis) > 0:
             reply = f"{ctx.author.mention} all of this guild's inactive FYIs:"
             jsons = [
-                discord.File(
-                    io.BytesIO(json.dumps(human_readable, indent=4).encode("utf8")),
-                    filename=f"inactive_human_readable.json"
+                self.make_discord_file_from_json(
+                    human_readable,
+                    "inactive_human_readable.json"
                 ),
-                discord.File(
-                    io.BytesIO(json.dumps(machine_readable, indent=4).encode("utf8")),
-                    filename=f"inactive.json"
+                self.make_discord_file_from_json(
+                    machine_readable,
+                    "inactive.json"
                 )
             ]
         async with ctx.channel.typing():
             await ctx.channel.send(reply, files=jsons)
 
-    @tasks.loop(hours=1)
+    def get_expired_fyis_helper(self, guild: discord.Guild):
+        """
+        Helper to get all expired FYIs for this guild.
+        :param guild:
+        :return:
+        """
+        expired_by = datetime.now(timezone.utc)
+        expired_fyis = self.db.get_expired_fyis(guild, expired_by)
+        human_readable = [self.serialize_fyi_info(x, True) for x in expired_fyis]
+        machine_readable = [self.serialize_fyi_info(x, False) for x in expired_fyis]
+
+        message_text = "There are no expired FYIs to clean up."
+        jsons = None
+        if len(expired_fyis) > 0:
+            message_text = "The following FYIs are expired:"
+            jsons = [
+                self.make_discord_file_from_json(
+                    human_readable,
+                    f"expired_{expired_by.isoformat()}_human_readable.json"
+                ),
+                self.make_discord_file_from_json(
+                    machine_readable,
+                    f"expired_{expired_by.isoformat()}.json"
+                )
+            ]
+        return message_text, jsons, expired_fyis, expired_by
+
+    @command(help="Show expired FYIs")
+    async def get_expired_fyis(self, ctx):
+        """
+        Show all of this guild's expired FYIs.
+        :param ctx:
+        :return:
+        """
+        self.can_configure_bot_validator(ctx)
+        message_text, jsons, _, _ = self.get_expired_fyis_helper(ctx.guild)
+        reply = f"{ctx.author.mention} {message_text}"
+        async with ctx.channel.typing():
+            await ctx.channel.send(reply, files=jsons)
+
+    async def clean_up_fyis_helper(self, guild, message_coro, caller=None):
+        """
+        Helper for cleaning up FYIs.
+        :param guild:
+        :param message_coro:
+        :param caller: a discord.Member or None
+        :return:
+        """
+        message_text, jsons, expired_fyis, _ = self.get_expired_fyis_helper(guild)
+        message_to_send = message_text if caller is None else f"{caller.mention} {message_text}"
+        if message_coro is not None:
+            await message_coro(message_to_send, files=jsons)
+
+        if message_coro is not None:
+            await message_coro("Cleaning up...")
+        # Now actually clean up the FYIs.
+        try:
+            for fyi_info in expired_fyis:
+                self.db.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
+            if message_coro is not None:
+                await message_coro("... done.")
+        except BotoCoreError as e:
+            if message_coro is not None:
+                await message_coro(f"There was a database error while deleting these FYIs:\n{str(e)}")
+            raise
+
+    @command(help="Clean up expired and inactive FYIs.")
+    async def clean_up_fyis(self, ctx):
+        """
+        Clean up all expired and inactive FYIs for this guild.
+        :return:
+        """
+        self.can_configure_bot_validator(ctx)
+        await self.clean_up_fyis_helper(ctx.guild, ctx.channel.send, caller=ctx.author)
+
+    @tasks.loop()  # set a proper loop interval at initialization
     async def clean_up_fyis(self):
         """
         Background task that cleans up all expired and inactive FYIs.
         :return:
         """
-        expired_by = datetime.now(timezone.utc)
         for guild in self.bot.guilds:
-            expired_fyis = self.db.get_expired_fyis(guild, expired_by)
-            inactive_fyis = self.db.get_inactive_fyis(guild)
-
-            expired = {
-                "human": [self.serialize_fyi_info(x, True) for x in expired_fyis],
-                "machine": [self.serialize_fyi_info(x, False) for x in expired_fyis]
-            }
-            inactive = {
-                "human": [self.serialize_fyi_info(x, True) for x in inactive_fyis],
-                "machine": [self.serialize_fyi_info(x, False) for x in inactive_fyis]
-            }
-
+            guild_logging_coro = None
             if self.logging_cog is not None:
-                jsons = []
-                if len(expired_fyis) > 0:
-                    jsons.extend(
-                            [
-                            discord.File(
-                                io.BytesIO(json.dumps(expired["human"], indent=4).encode("utf8")),
-                                filename=f"expired_{expired_by.isoformat()}_human_readable.json"
-                            ),
-                            discord.File(
-                                io.BytesIO(json.dumps(expired["machine"], indent=4).encode("utf8")),
-                                filename=f"expired_{expired_by.isoformat()}.json"
-                            )
-                        ]
-                    )
-                if len(inactive_fyis) > 0:
-                    jsons.extend(
-                        [
-                            discord.File(
-                                io.BytesIO(json.dumps(inactive["human"], indent=4).encode("utf8")),
-                                filename=f"inactive_human_readable.json"
-                            ),
-                            discord.File(
-                                io.BytesIO(json.dumps(inactive["machine"], indent=4).encode("utf8")),
-                                filename=f"inactive.json"
-                            )
-                        ]
-                    )
+                async def guild_logging_coro(*args, **kwargs):
+                    await self.logging_cog.log_to_channel(guild, *args, **kwargs)
+            await self.clean_up_fyis_helper(guild, guild_logging_coro, caller=None)
 
-                if len(jsons) > 0:
-                    types_to_report_str = "expired and inactive"
-                    if len(expired_fyis) > 0 and len(inactive_fyis) == 0:
-                        types_to_report_str = "expired"
-                    elif len(expired_fyis) == 0 and len(inactive_fyis) > 0:
-                        types_to_report_str = "inactive"
-
-                    await self.logging_cog.log_to_channel(
-                        guild,
-                        content=f"Cleaning up the following {types_to_report_str} FYIs....",
-                        files=jsons
-                    )
-
-            # Now actually clean up the FYIs.
-            for fyi_info in expired_fyis + inactive_fyis:
-                self.delete_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
+    @clean_up_fyis.before_loop
+    async def before_clean_up_fyis(self):
+        await self.bot.wait_until_ready()

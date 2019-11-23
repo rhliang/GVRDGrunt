@@ -5,5 +5,8 @@
   "log_file": "output.log",
   "endpoint_url": "http://localhost:8000",
   "aws_access_key_id": null,
-  "aws_secret_access_key": null
+  "aws_secret_access_key": null,
+  "fyi_clean_up_hours": 12,
+  "fyi_clean_up_minutes": 0,
+  "fyi_clean_up_seconds": 0
 }
