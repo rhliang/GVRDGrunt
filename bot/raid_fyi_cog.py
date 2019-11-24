@@ -222,6 +222,7 @@ class RaidFYICog(BotPermsChecker, Cog):
                 timeout_in_hours
             )
 
+    @Cog.listener()
     async def on_guild_channel_create(self, channel: discord.TextChannel):
         """
         If this channel belongs to a mapped category, map it to the category's FYI channel.
@@ -232,7 +233,12 @@ class RaidFYICog(BotPermsChecker, Cog):
         if category_mapping_info is None:
             return
         # This channel belongs to a mapped category, so we configure its FYI mapping.
-        self.db.register_fyi_channel_mapping(channel.guild, channel, category_mapping_info["relay_channel"])
+        self.db.register_fyi_channel_mapping(
+            channel.guild,
+            channel,
+            category_mapping_info["relay_channel"],
+            category_mapping_info["timeout_in_hours"]
+        )
         if self.logging_cog is not None:
             await self.logging_cog.log_to_channel(
                 channel.guild,

@@ -77,12 +77,12 @@ def main():
     raid_fyi_db = RaidFYIDB(
         endpoint_url=settings["endpoint_url"],
         aws_access_key_id=settings["aws_access_key_id"],
-        aws_secret_access_key=settings["aws_access_key_id"]
+        aws_secret_access_key=settings["aws_secret_access_key"]
     )
     bot_perms_db = BotPermsDB(
         endpoint_url=settings["endpoint_url"],
         aws_access_key_id=settings["aws_access_key_id"],
-        aws_secret_access_key=settings["aws_access_key_id"]
+        aws_secret_access_key=settings["aws_secret_access_key"]
     )
 
     logging_cog = GuildLoggingCog(gvrd_grunt, logging_db)
