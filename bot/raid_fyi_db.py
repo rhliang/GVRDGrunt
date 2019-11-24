@@ -56,10 +56,10 @@ class RaidFYIDB(object):
     """
     A class representing the database we use to store our information.
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, table_name="RaidFYI", *args, **kwargs):
         # The database can be initialized with raid_fyi_initialization.json
         self.db = boto3.resource("dynamodb", *args, **kwargs)
-        self.table = self.db.Table("RaidFYI")
+        self.table = self.db.Table(table_name)
 
     def get_fyi_info(self, guild: discord.Guild):
         """
