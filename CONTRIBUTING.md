@@ -24,9 +24,14 @@ Start here:
 aws dynamodb help
 ```
 
-For example:
+Create a table:
 ```
 aws dynamodb create-table --cli-input-json file://schema/raid_fyi_initialization.json --endpoint-url http://localhost:8000
+```
+
+Create a table while overriding the table name (useful for development):
+```
+aws dynamodb create-table --table-name RaidFYIDev --cli-input-json file://schema/raid_fyi_initialization.json --endpoint-url http://localhost:8000
 ```
 
 Checking on tables:
