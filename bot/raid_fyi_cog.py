@@ -448,18 +448,19 @@ Category mappings:
             stripped_content
         )
 
-        rsvp_emoji = fyi_info["rsvp_emoji"]
-        rsvp_emoji_rendered = rsvp_emoji
-        if not isinstance(rsvp_emoji, str):
-            rsvp_emoji_rendered = f"<:{rsvp_emoji.name}:{rsvp_emoji.id}>"
+        full_message_text = relay_message_text
+        if fyi_info["enhanced"]:
+            rsvp_emoji = fyi_info["rsvp_emoji"]
+            rsvp_emoji_rendered = rsvp_emoji
+            if not isinstance(rsvp_emoji, str):
+                rsvp_emoji_rendered = f"<:{rsvp_emoji.name}:{rsvp_emoji.id}>"
+            full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
+                relay_message_text=relay_message_text,
+                rsvp_emoji=rsvp_emoji_rendered,
+                interested_users_str=self.RELAY_MESSAGE_NONE_INTERESTED_YET
+            )
 
-        full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
-            relay_message_text=relay_message_text,
-            rsvp_emoji=rsvp_emoji_rendered,
-            interested_users_str=self.RELAY_MESSAGE_NONE_INTERESTED_YET
-        )
         relay_message = await relay_channel.send(full_message_text)
-
         chat_relay_message_id = None
         chat_relay_message = None
         if fyi_info["relay_to_chat"]:
@@ -504,14 +505,14 @@ Category mappings:
                     reactors[user].add(reaction.emoji)
         return reactors
 
-    async def update_fyi_helper(self, guild, fyi_info, rsvp_emoji, tz):
+    async def update_fyi_helper(self, guild, fyi_info, tz, rsvp_emoji=None):
         """
         Helper that updates an FYI when anything changes.
 
         :param guild:
         :param fyi_info: a dictionary as returned by RaidFYIDB.get_fyi
-        :param rsvp_emoji: either a string or an Emoji
         :param tz: a Python timezone object as returned by pytz.timezone
+        :param rsvp_emoji: the guild's RSVP emoji, or None (if the guild does not have enhanced FYI on)
         :return:
         """
         try:
@@ -537,23 +538,27 @@ Category mappings:
             tz,
             self.strip_fyi_message_content(command_message)
         )
-        fyi_messages = [command_message, relay_message]
-        if chat_relay_message is not None:
-            fyi_messages.append(chat_relay_message)
-        reactors = await self.get_all_reactors(fyi_messages)
 
-        rsvp_emoji_rendered = rsvp_emoji
-        if not isinstance(rsvp_emoji, str):
-            rsvp_emoji_rendered = f"<:{rsvp_emoji.name}:{rsvp_emoji.id}>"
+        full_message_text = relay_message_text
+        reactors = []
+        if rsvp_emoji is not None:
+            fyi_messages = [command_message, relay_message]
+            if chat_relay_message is not None:
+                fyi_messages.append(chat_relay_message)
+            reactors = await self.get_all_reactors(fyi_messages)
 
-        interested_users_str = self.RELAY_MESSAGE_NONE_INTERESTED_YET
-        if len(reactors) > 0:
-            interested_users_str = self.build_interested_users_list_string(reactors)
-        full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
-            relay_message_text=relay_message_text,
-            rsvp_emoji=rsvp_emoji_rendered,
-            interested_users_str=interested_users_str
-        )
+            rsvp_emoji_rendered = rsvp_emoji
+            if not isinstance(rsvp_emoji, str):
+                rsvp_emoji_rendered = f"<:{rsvp_emoji.name}:{rsvp_emoji.id}>"
+
+            interested_users_str = self.RELAY_MESSAGE_NONE_INTERESTED_YET
+            if len(reactors) > 0:
+                interested_users_str = self.build_interested_users_list_string(reactors)
+            full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
+                relay_message_text=relay_message_text,
+                rsvp_emoji=rsvp_emoji_rendered,
+                interested_users_str=interested_users_str
+            )
 
         self.db.update_fyi(
             guild,
@@ -586,8 +591,8 @@ Category mappings:
         await self.update_fyi_helper(
             guild,
             fyi_info,
-            guild_fyi_info["rsvp_emoji"],
-            guild_fyi_info["timezone"]
+            guild_fyi_info["timezone"],
+            guild_fyi_info["rsvp_emoji"]
         )
 
     async def update_fyi_edited(self, payload):
@@ -621,8 +626,8 @@ Category mappings:
         relay_message_text, reactors = await self.update_fyi_helper(
             guild,
             fyi_info,
-            guild_fyi_info["rsvp_emoji"],
-            guild_fyi_info["timezone"]
+            guild_fyi_info["timezone"],
+            guild_fyi_info["rsvp_emoji"]
         )
 
         if guild_fyi_info["enhanced"]:
