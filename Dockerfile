@@ -6,7 +6,6 @@ ADD bot /app/bot
 ADD requirements.txt /app
 
 RUN apk update
-RUN apk add gcc
 RUN apk add git
 RUN python -m pip install -r /app/requirements.txt
 
