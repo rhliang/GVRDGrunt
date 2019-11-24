@@ -6,6 +6,7 @@
   "endpoint_url": "http://localhost:8000",
   "aws_access_key_id": null,
   "aws_secret_access_key": null,
+  "region_name": "us-west-2",
   "bot_perms_table": "BotPerms",
   "fyi_table": "RaidFYI",
   "fyi_clean_up_hours": 12,

@@ -77,12 +77,14 @@ def main():
     raid_fyi_db = RaidFYIDB(
         table_name=settings["fyi_table"],
         endpoint_url=settings["endpoint_url"],
+        region_name=settings["region_name"],
         aws_access_key_id=settings["aws_access_key_id"],
         aws_secret_access_key=settings["aws_secret_access_key"]
     )
     bot_perms_db = BotPermsDB(
         table_name=settings["bot_perms_table"],
         endpoint_url=settings["endpoint_url"],
+        region_name=settings["region_name"],
         aws_access_key_id=settings["aws_access_key_id"],
         aws_secret_access_key=settings["aws_secret_access_key"]
     )
