@@ -11,6 +11,8 @@ from discord.ext import tasks
 from botocore.exceptions import BotoCoreError
 
 from bot.bot_perms_cog import BotPermsChecker
+from bot.utils import break_up_long_message
+
 __author__ = 'Richard Liang'
 
 
@@ -334,13 +336,12 @@ Enhanced FYI functionality: {fyi_info["enhanced"]}
 Relay to chat: {fyi_info["relay_to_chat"]}
 RSVP emoji: {fyi_info["rsvp_emoji"] if fyi_info["enhanced"] else "(None)"}
 Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(None)"}
-Channel mappings:
-{mapping_list_str}
-Category mappings:
-{category_mapping_str}
 """
+        channel_mappings_chunks = break_up_long_message(f"Channel mappings:\n{mapping_list_str}")
+        category_mappings_chunks = break_up_long_message(f"Category mappings:\n{category_mapping_str}")
 
-        await ctx.channel.send(summary_message)
+        for summary_chunk in [summary_message] + channel_mappings_chunks + category_mappings_chunks:
+            await ctx.channel.send(summary_chunk)
 
     @staticmethod
     def build_relay_message_text(

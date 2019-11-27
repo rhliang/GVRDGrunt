@@ -6,6 +6,7 @@ import discord
 from discord.ext.commands import command, has_permissions, TextChannelConverter, BadArgument, EmojiConverter, Cog
 
 from bot.convert_using_guild import role_converter_from_name, get_matching_roles_case_insensitive
+from bot.utils import break_up_long_message
 
 __author__ = 'Richard Liang'
 
@@ -369,15 +370,8 @@ class NoCommandSubscriptionCog(Cog):
         if len(summary_message) + len(roles_list_message) <= 2000:
             messages_to_send = [summary_message + roles_list_message]
         else:
-            messages_to_send.append(summary_message)
-            curr_role_message = ""
-            for line in roles_list_message.splitlines(keepends=True):
-                if len(curr_role_message) + len(line) > 2000:
-                    messages_to_send.append(curr_role_message)
-                    curr_role_message = line
-                else:
-                    curr_role_message += line
-            messages_to_send.append(curr_role_message)
+            role_message_chunks = break_up_long_message(roles_list_message)
+            messages_to_send = [summary_message] + role_message_chunks
 
         for message_text in messages_to_send:
             await ctx.message.channel.send(message_text)
