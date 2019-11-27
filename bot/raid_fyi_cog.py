@@ -359,11 +359,11 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         :param message_content:
         :return:
         """
-        relay_message_template = "**FYI from {creator} at {creation_time}:**\n{content}"
+        relay_message_template = "**FYI from {creator}** ({creation_time}):\n{content}"
         guild_localized_timestamp = timestamp.astimezone(tz)
         relay_message = relay_message_template.format(
             creator=creator.mention,
-            creation_time=guild_localized_timestamp.strftime("%I:%M%p on %Y %b %d"),
+            creation_time=guild_localized_timestamp.strftime("%I:%M%p %Y/%m/%d"),
             content=message_content
         )
         return relay_message
