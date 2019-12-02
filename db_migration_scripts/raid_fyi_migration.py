@@ -4,11 +4,12 @@ import json
 import sqlite3
 
 
-def get_all_fyi_configuration(conn):
+def get_all_fyi_configuration(conn, new_table_name="RaidFYI"):
     """
     Return all raid FYI configuration in a dictionary.
 
     :param conn:
+    :param new_table_name:
     :return:
     """
     all_configuration = []
@@ -63,19 +64,24 @@ def get_all_fyi_configuration(conn):
             all_configuration.append(guild_config)
             all_configuration.extend(guild_channel_mappings)
 
-    return {"RaidFYI": [{"PutRequest": {"Item": x}} for x in all_configuration]}
+    return {new_table_name: [{"PutRequest": {"Item": x}} for x in all_configuration]}
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Extract all FYI configuration from a GruntBot DB as JSON.")
     parser.add_argument("db", help="Path to the SQLite DB to extract from.")
+    parser.add_argument(
+        "--new_table_name",
+        help="Name of the new DynamoDB table that records will go into",
+        default="RaidFYI"
+    )
     parser.add_argument("--output", default="out.json", help="")
     args = parser.parse_args()
 
     conn = sqlite3.connect(args.db)
     with open(args.output, "w") as f:
-        json.dump(get_all_fyi_configuration(conn), f, indent=4)
+        json.dump(get_all_fyi_configuration(conn, new_table_name=args.new_table_name), f, indent=4)
 
 
 if __name__ == "__main__":
