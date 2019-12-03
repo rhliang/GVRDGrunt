@@ -6,7 +6,7 @@ import sqlite3
 
 def get_all_verification_configuration(conn, new_table_name="GuildVerification"):
     """
-    Return all raid FYI configuration in a dictionary.
+    Return all verification configuration in a dictionary.
 
     :param conn:
     :param new_table_name:
@@ -61,7 +61,7 @@ def get_all_verification_configuration(conn, new_table_name="GuildVerification")
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Extract all FYI configuration from a GruntBot DB as JSON.")
+    parser = argparse.ArgumentParser(description="Extract all verification configuration from a GruntBot DB as JSON.")
     parser.add_argument("db", help="Path to the SQLite DB to extract from.")
     parser.add_argument(
         "--new_table_name",
