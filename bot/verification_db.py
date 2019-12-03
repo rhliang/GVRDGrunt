@@ -207,16 +207,35 @@ class VerificationDB(object):
 
         If mandatory is True, it's marked as a mandatory verification role.
 
+        Assume that the guild has an existing record in the database.
+
         :param guild:
         :param role:
         :param mandatory:
         :return:
         """
+        existing_info = self.get_verification_info(guild)
+        if not mandatory:
+            if role in existing_info["standard_roles"]:
+                raise ValueError("Role is already in this guild's standard roles")
+            new_standard_role_ids = existing_info["standard_roles"] + [role.id]
+            new_mandatory_role_ids = existing_info["mandatory_roles"]
+
+        else:
+            if role in existing_info["mandatory_roles"]:
+                raise ValueError("Role is already in this guild's mandatory roles")
+            # Remove this from the standard roles if it's there, and add it to the mandatory roles.
+            new_standard_role_ids = [x for x in existing_info["standard_roles"] if x != role.id]
+            new_mandatory_role_ids = existing_info["mandatory_roles"] + [role.id]
+
         self.table.update_item(
             Key={"guild_id": guild.id},
-            UpdateExpression="SET #roles = list_append(#roles, :new_role)",
-            ExpressionAttributeNames={"#roles": "mandatory_roles" if mandatory else "standard_roles"},
-            ExpressionAttributeValues={":new_role": [role.id]}
+            UpdateExpression="SET standard_roles = :new_standard_role_ids, "
+                             "mandatory_roles = :new_mandatory_role_ids",
+            ExpressionAttributeValues={
+                ":new_standard_role_ids": new_standard_role_ids,
+                ":new_mandatory_role_ids": new_mandatory_role_ids
+            }
         )
 
     def clear_roles(self, guild):

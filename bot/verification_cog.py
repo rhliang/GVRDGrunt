@@ -257,11 +257,12 @@ class VerificationCog(Cog):
         :return:
         """
         self.guild_fully_configured_validator(ctx.guild)
-
-        self.db.add_standard_role(ctx.guild, role, mandatory=True)
-        await ctx.message.channel.send(
-            f"{ctx.author.mention} Role {role} has been added to this guild's mandatory roles"
-        )
+        reply = f"{ctx.author.mention} Role {role} has been added to this guild's mandatory roles"
+        try:
+            self.db.add_standard_role(ctx.guild, role, mandatory=True)
+        except ValueError:
+            reply = f"{ctx.author.mention} Role {role} is already a mandatory role"
+        await ctx.message.channel.send(reply)
 
     @command()
     @has_permissions(administrator=True)
@@ -274,11 +275,12 @@ class VerificationCog(Cog):
         :return:
         """
         self.guild_fully_configured_validator(ctx.guild)
-
-        self.db.add_standard_role(ctx.guild, role, mandatory=False)
-        await ctx.message.channel.send(
-            f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
-        )
+        reply = f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
+        try:
+            self.db.add_standard_role(ctx.guild, role, mandatory=False)
+        except ValueError:
+            reply = f"{ctx.author.mention} Role {role} is already a standard role"
+        await ctx.message.channel.send(reply)
 
     @command()
     @has_permissions(administrator=True)
@@ -321,7 +323,10 @@ class VerificationCog(Cog):
         """
     )
 
-    @command(help="Display the guild configuration.")
+    @command(
+        help="Display the guild configuration.",
+        aliases=["show_settings", "show_verification_settings", "show_verification_config"]
+    )
     @has_permissions(manage_roles=True)
     async def showsettings(self, ctx):
         """
