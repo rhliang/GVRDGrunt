@@ -47,8 +47,12 @@ def get_all_verification_configuration(conn, new_table_name="GuildVerification")
                 (row[0],)
             )
             channel_mappings = list(channel_mapping_cursor)
-            guild_config["standard_roles"] = [role_id for role_id, mandatory in channel_mappings if not mandatory]
-            guild_config["mandatory_roles"] = [role_id for role_id, mandatory in channel_mappings if mandatory]
+            guild_config["standard_roles"] = {
+                "L": [{"N": str(role_id)} for role_id, mandatory in channel_mappings if not mandatory]
+            }
+            guild_config["mandatory_roles"] = {
+                "L": [{"N": str(role_id)} for role_id, mandatory in channel_mappings if mandatory]
+            }
             all_configuration.append(guild_config)
 
     return {new_table_name: [{"PutRequest": {"Item": x}} for x in all_configuration]}
