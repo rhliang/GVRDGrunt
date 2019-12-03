@@ -66,7 +66,6 @@ def main():
         loop=loop
     )
 
-    verification_db = VerificationDB(settings["sqlite_db"])
     logging_db = GuildLoggingDB(settings["sqlite_db"])
     ex_db = EXGateDB(settings["sqlite_db"])
     role_reaction_subscription_db = RoleReactionSubscriptionDB(settings["sqlite_db"])
