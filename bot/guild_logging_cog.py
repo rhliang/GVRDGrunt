@@ -35,7 +35,7 @@ class GuildLoggingCog(Cog):
             await ctx.message.channel.send(f'{ctx.author.mention} This guild does not have a log channel configured.')
             return
 
-        logging_channel = ctx.guild.get_channel(logging_info["log_channel_id"])
+        logging_channel = logging_info["log_channel"]
         await ctx.message.channel.send(f'Log messages are sent to channel {logging_channel}')
 
     @command()
@@ -78,5 +78,5 @@ class GuildLoggingCog(Cog):
         if logging_info is None:
             return
 
-        log_channel = guild.get_channel(logging_info["log_channel_id"])
+        log_channel = logging_info["log_channel"]
         await log_channel.send(*args, **kwargs)
