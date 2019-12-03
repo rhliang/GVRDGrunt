@@ -19,13 +19,13 @@ from bot.role_reaction_subscription_db import RoleReactionSubscriptionDB
 from bot.role_reminder_cog import RoleReminderCog
 from bot.role_reminder_db import RoleReminderDB
 from bot.role_set_operations_cog import RoleSetOperationsCog
-from bot.verification_cog import VerificationCog
-from bot.verification_db import VerificationDB
 
 from bot.raid_fyi_db import RaidFYIDB
 from bot.raid_fyi_cog import RaidFYICog
 from bot.bot_perms_db import BotPermsDB
 from bot.bot_perms_cog import BotPermsCog
+from bot.verification_db import VerificationDB
+from bot.verification_cog import VerificationCog
 
 __author__ = "Richard Liang"
 
@@ -88,9 +88,15 @@ def main():
         aws_access_key_id=settings["aws_access_key_id"],
         aws_secret_access_key=settings["aws_secret_access_key"]
     )
+    verification_db = BotPermsDB(
+        table_name=settings["verification_table"],
+        endpoint_url=settings["endpoint_url"],
+        region_name=settings["region_name"],
+        aws_access_key_id=settings["aws_access_key_id"],
+        aws_secret_access_key=settings["aws_secret_access_key"]
+    )
 
     logging_cog = GuildLoggingCog(gvrd_grunt, logging_db)
-    gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db))
     gvrd_grunt.add_cog(logging_cog)
     gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db, logging_cog=logging_cog))
     gvrd_grunt.add_cog(RoleReactionSubscriptionCog(gvrd_grunt, role_reaction_subscription_db, logging_cog=logging_cog))
@@ -113,6 +119,7 @@ def main():
             logging_cog=logging_cog
         )
     )
+    gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db, bot_perms_db))
 
     # For testing only -- *do not install on a production bot!*
     # gvrd_grunt.add_cog(SpamCog())
