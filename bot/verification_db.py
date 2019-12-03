@@ -70,7 +70,7 @@ class VerificationDB(object):
                     team = field_name.split("_")[0]
                     if result[f"{team}_emoji_type"] == "custom":
                         converted_result = emoji_converter(guild, raw_field)
-            final_results[field_name].append(converted_result)
+            final_results[field_name] = converted_result
 
         final_results["standard_roles"] = [role_converter(guild, role_id) for role_id in result["standard_roles"]]
         final_results["mandatory_roles"] = [role_converter(guild, role_id) for role_id in result["mandatory_roles"]]

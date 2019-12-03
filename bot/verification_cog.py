@@ -232,7 +232,7 @@ class VerificationCog(BotPermsChecker, Cog):
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
 
-        must_be_set = [field_name for field_name, _ in self.db.all_fields]
+        must_be_set = [field_name for field_name, _ in self.db.ALL_FIELDS]
         if any([guild_info[x] is None for x in must_be_set]):
             return False
         return True
