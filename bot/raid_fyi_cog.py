@@ -343,8 +343,20 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         for summary_chunk in [summary_message] + channel_mappings_chunks + category_mappings_chunks:
             await ctx.channel.send(summary_chunk)
 
-    @staticmethod
+    def mention_member_or_id(self, member_or_id):
+        """
+        Helper that builds a mention of the given member or ID.
+        :return:
+        """
+        if isinstance(member_or_id, discord.User):
+            return member_or_id.mention
+        user = self.bot.get_user(member_or_id)
+        if user is not None:
+            return user.mention
+        return f"<@{member_or_id}>"
+
     def build_relay_message_text(
+            self,
             creator,
             timestamp,
             tz,
@@ -362,7 +374,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         relay_message_template = "**FYI from {creator}** ({creation_time}):\n{content}"
         guild_localized_timestamp = timestamp.astimezone(tz)
         relay_message = relay_message_template.format(
-            creator=creator.mention,
+            creator=self.mention_member_or_id(creator),
             creation_time=guild_localized_timestamp.strftime("%I:%M%p %Y/%m/%d"),
             content=message_content
         )
@@ -635,11 +647,11 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             # Ping all interested.
             audience = [x for x in reactors if x != fyi_info["creator"]]
             if len(audience) != 0:
-                audience_str = " ".join([x.mention for x in audience])
+                audience_str = " ".join([self.mention_member_or_id(x) for x in audience])
                 # Inset the relay message text.
                 inset_relay_message_text = "> " + relay_message_text.replace("\n", "\n> ")
                 reactor_ping = (f"{audience_str} the FYI you were interested in has been updated "
-                                f"by {fyi_info['creator'].mention}:\n"
+                                f"by {self.mention_member_or_id(fyi_info['creator'])}:\n"
                                 f"{inset_relay_message_text}")
                 await fyi_info["chat_channel"].send(reactor_ping)
 
@@ -708,7 +720,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             # Send a ping to all who were interested.
             audience = set(fyi_info["interested"] + [fyi_info["creator"]])
             if len(audience) != 0:
-                audience_str = " ".join([x.mention for x in audience])
+                audience_str = " ".join([self.mention_member_or_id(x) for x in audience])
                 inset_fyi_text = "> " + fyi_info["edit_history"][-1].replace("\n", "\n> ")
                 deletion_ping = (f"{audience_str} the FYI you were interested in has been removed:\n"
                                  f"{inset_fyi_text}")
@@ -730,8 +742,26 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         for fyi_info in matching_fyis:
             await self.deactivate_fyi(guild, channel, fyi_info["command_message_id"], cancellation=False)
 
-    @staticmethod
-    def serialize_fyi_info(fyi_info, human_readable=False):
+    def human_readable_member_or_id(self, member_or_id):
+        """
+        Helper that returns a serialized version of the specified member/ID.
+
+        If it's a guild member, return the display name.  If it's an ID, attempt to get the discord.User and
+        return that User's username.  Otherwise just return the ID.
+        :param member_or_id:
+        :return:
+        """
+        if isinstance(member_or_id, discord.Member):
+            return member_or_id.display_name
+        else:
+            user = self.bot.get_user(member_or_id)
+            if user is not None:
+                return user.name
+        return member_or_id
+
+
+
+    def serialize_fyi_info(self, fyi_info, human_readable=False):
         """
         Convert a dictionary summarizing an FYI (as returned by RaidFYIDB.get_fyi) into something JSON-serializable.
         :param fyi_info:
@@ -753,12 +783,12 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         if human_readable:
             fyi["chat_channel"] = fyi["chat_channel"].name
             fyi["relay_channel"] = fyi["relay_channel"].name
-            fyi["interested"] = [x.display_name for x in fyi["interested"]]
-            fyi["creator"] = fyi["creator"].display_name
+            fyi["interested"] = [self.human_readable_member_or_id(x) for x in fyi["interested"]]
+            fyi["creator"] = self.human_readable_member_or_id(fyi["creator"])
         else:
             fyi["chat_channel"] = fyi["chat_channel"].id
             fyi["relay_channel"] = fyi["relay_channel"].id
-            fyi["interested"] = [x.id for x in fyi["interested"]]
+            fyi["interested"] = [x.id if isinstance(x, discord.Member) else x for x in fyi["interested"]]
             fyi["creator"] = fyi["creator"].id
 
         return fyi

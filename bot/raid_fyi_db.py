@@ -460,7 +460,19 @@ class RaidFYIDB(object):
 
         timestamp = dateutil.parser.parse(fyi_info["timestamp"])
         expiry = dateutil.parser.parse(fyi_info["expiry"])
+
+        # If the creator is a current guild member, return the member; otherwise, return the raw ID.
         creator = guild.get_member(fyi_info["creator_id"])
+        if creator is None:
+            creator = fyi_info["creator_id"]
+
+        # Likewise for interested members.
+        interested = []
+        for x in fyi_info["interested"]:
+            curr_interested = guild.get_member(x)
+            if curr_interested is None:
+                curr_interested = x
+            interested.append(curr_interested)
 
         return {
             "chat_channel": chat_channel,
@@ -472,7 +484,7 @@ class RaidFYIDB(object):
             "expiry": expiry,
             "creator": creator,
             "edit_history": fyi_info["edit_history"],
-            "interested": [guild.get_member(x) for x in fyi_info["interested"]],
+            "interested": interested,
             "active": fyi_info["active"]
         }
 
