@@ -348,7 +348,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         Helper that builds a mention of the given member or ID.
         :return:
         """
-        if isinstance(member_or_id, discord.User):
+        if isinstance(member_or_id, discord.User) or isinstance(member_or_id, discord.Member):
             return member_or_id.mention
         user = self.bot.get_user(member_or_id)
         if user is not None:
@@ -757,9 +757,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             user = self.bot.get_user(member_or_id)
             if user is not None:
                 return user.name
-        return member_or_id
-
-
+        return int(member_or_id)
 
     def serialize_fyi_info(self, fyi_info, human_readable=False):
         """
@@ -788,8 +786,8 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         else:
             fyi["chat_channel"] = fyi["chat_channel"].id
             fyi["relay_channel"] = fyi["relay_channel"].id
-            fyi["interested"] = [x.id if isinstance(x, discord.Member) else x for x in fyi["interested"]]
-            fyi["creator"] = fyi["creator"].id
+            fyi["interested"] = [x.id if isinstance(x, discord.Member) else int(x) for x in fyi["interested"]]
+            fyi["creator"] = fyi["creator"].id if isinstance(fyi["creator"], discord.Member) else int(fyi["creator"])
 
         return fyi
 
