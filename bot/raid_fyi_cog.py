@@ -525,7 +525,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             await relay_message.add_reaction(fyi_info["rsvp_emoji"])
             await relay_message.add_reaction(fyi_info["remote_emoji"])
             if fyi_info["relay_to_chat"]:
-                await chat_relay_message.add_reaction(fyi_info["rsvp_emoji"]):
+                await chat_relay_message.add_reaction(fyi_info["rsvp_emoji"])
                 await chat_relay_message.add_reaction(fyi_info["remote_emoji"])
 
     async def get_all_reactors(self, messages):
@@ -543,7 +543,14 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
                     reactors[user].add(reaction.emoji)
         return reactors
 
-    async def update_fyi_helper(self, guild, fyi_info, tz, rsvp_emoji=None):
+    async def update_fyi_helper(
+            self,
+            guild,
+            fyi_info,
+            tz,
+            rsvp_emoji=None,
+            remote_emoji=None,
+    ):
         """
         Helper that updates an FYI when anything changes.
 
@@ -551,6 +558,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         :param fyi_info: a dictionary as returned by RaidFYIDB.get_fyi
         :param tz: a Python timezone object as returned by pytz.timezone
         :param rsvp_emoji: the guild's RSVP emoji, or None (if the guild does not have enhanced FYI on)
+        :param remote_emoji: the guild's remote emoji, or None (if the guild does not have enhanced FYI on)
         :return:
         """
         try:
@@ -588,6 +596,9 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             rsvp_emoji_rendered = rsvp_emoji
             if not isinstance(rsvp_emoji, str):
                 rsvp_emoji_rendered = f"<:{rsvp_emoji.name}:{rsvp_emoji.id}>"
+            remote_emoji_rendered = remote_emoji
+            if not isinstance(remote_emoji, str):
+                remote_emoji_rendered = f"<:{remote_emoji.name}:{remote_emoji.id}>"
 
             interested_users_str = self.RELAY_MESSAGE_NONE_INTERESTED_YET
             if len(reactors) > 0:
@@ -595,6 +606,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
                 relay_message_text=relay_message_text,
                 rsvp_emoji=rsvp_emoji_rendered,
+                remote_emoji=remote_emoji_rendered,
                 interested_users_str=interested_users_str
             )
 
@@ -630,7 +642,8 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             guild,
             fyi_info,
             guild_fyi_info["timezone"],
-            guild_fyi_info["rsvp_emoji"]
+            guild_fyi_info["rsvp_emoji"],
+            guild_fyi_info["remote_emoji"],
         )
 
     async def update_fyi_edited(self, payload):
@@ -665,7 +678,8 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             guild,
             fyi_info,
             guild_fyi_info["timezone"],
-            guild_fyi_info["rsvp_emoji"]
+            guild_fyi_info["rsvp_emoji"],
+            guild_fyi_info["remote_emoji"],
         )
 
         if guild_fyi_info["enhanced"]:
