@@ -18,6 +18,8 @@ from bot.convert_using_guild import emoji_converter
 # - relay_to_chat (Boolean)
 # - rsvp_emoji (string or emoji ID)
 # - rsvp_emoji_type ("normal" or "custom")
+# - remote_emoji (string or emoji ID)
+# - remote_emoji_type ("normal" or "custom")
 # - cancelled_emoji (string or emoji ID)
 # - cancelled_emoji_type ("normal" or "custom")
 # - timezone (in a form that pytz recognizes, e.g. "America/Vancouver"
