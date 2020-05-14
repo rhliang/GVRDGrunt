@@ -98,6 +98,7 @@ class RaidFYICog(BotPermsChecker, Cog):
             self,
             ctx,
             rsvp_emoji,
+            remote_emoji,
             cancelled_emoji,
             relay_to_chat: bool
     ):
@@ -106,6 +107,7 @@ class RaidFYICog(BotPermsChecker, Cog):
 
         :param ctx:
         :param rsvp_emoji:
+        :param remote_emoji:
         :param cancelled_emoji:
         :param relay_to_chat:
         :return:
@@ -119,11 +121,22 @@ class RaidFYICog(BotPermsChecker, Cog):
             actual_rsvp_emoji = rsvp_emoji
 
         try:
+            actual_remote_emoji = await emoji_converter.convert(ctx, remote_emoji)
+        except BadArgument:
+            actual_remote_emoji = remote_emoji
+
+        try:
             actual_cancelled_emoji = await emoji_converter.convert(ctx, cancelled_emoji)
         except BadArgument:
             actual_cancelled_emoji = cancelled_emoji
 
-        self.db.activate_enhanced_fyi(ctx.guild, actual_rsvp_emoji, actual_cancelled_emoji, relay_to_chat)
+        self.db.activate_enhanced_fyi(
+            ctx.guild,
+            actual_rsvp_emoji,
+            actual_remote_emoji,
+            actual_cancelled_emoji,
+            relay_to_chat,
+        )
         await ctx.channel.send(f"{ctx.author.mention} Enhanced FYI functionality is now enabled.")
 
     @command(
@@ -335,6 +348,7 @@ Timezone: {fyi_info["timezone"]}
 Enhanced FYI functionality: {fyi_info["enhanced"]}
 Relay to chat: {fyi_info["relay_to_chat"]}
 RSVP emoji: {fyi_info["rsvp_emoji"] if fyi_info["enhanced"] else "(None)"}
+Remote emoji: {fyi_info["remote_emoji"] if fyi_info["enhanced"] else "(None)"}
 Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(None)"}
 """
         channel_mappings_chunks = break_up_long_message(f"Channel mappings:\n{mapping_list_str}")
@@ -425,7 +439,10 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             return
         return stripped_content
 
-    RELAY_MESSAGE_TEMPLATE = "{relay_message_text}\n**Interested (add a {rsvp_emoji} if so):**\n{interested_users_str}"
+    RELAY_MESSAGE_TEMPLATE = (
+        "{relay_message_text}\n**Interested (add a {rsvp_emoji} if so, {remote_emoji} for remote):**\n"
+        "{interested_users_str}"
+    )
     RELAY_MESSAGE_NONE_INTERESTED_YET = "(none so far)"
 
     FYI_ALIASES = ["FYI", "Fyi"]
@@ -467,9 +484,14 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             rsvp_emoji_rendered = rsvp_emoji
             if not isinstance(rsvp_emoji, str):
                 rsvp_emoji_rendered = f"<:{rsvp_emoji.name}:{rsvp_emoji.id}>"
+            remote_emoji = fyi_info["remote_emoji"]
+            remote_emoji_rendered = remote_emoji
+            if not isinstance(remote_emoji, str):
+                remote_emoji_rendered = f"<:{remote_emoji.name}:{remote_emoji.id}>"
             full_message_text = self.RELAY_MESSAGE_TEMPLATE.format(
                 relay_message_text=relay_message_text,
                 rsvp_emoji=rsvp_emoji_rendered,
+                remote_emoji=remote_emoji_rendered,
                 interested_users_str=self.RELAY_MESSAGE_NONE_INTERESTED_YET
             )
 
@@ -499,9 +521,12 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         await ctx.message.add_reaction(fyi_info["fyi_emoji"])
         if fyi_info["enhanced"]:
             await ctx.message.add_reaction(fyi_info["rsvp_emoji"])
+            await ctx.message.add_reaction(fyi_info["remote_emoji"])
             await relay_message.add_reaction(fyi_info["rsvp_emoji"])
+            await relay_message.add_reaction(fyi_info["remote_emoji"])
             if fyi_info["relay_to_chat"]:
-                await chat_relay_message.add_reaction(fyi_info["rsvp_emoji"])
+                await chat_relay_message.add_reaction(fyi_info["rsvp_emoji"]):
+                await chat_relay_message.add_reaction(fyi_info["remote_emoji"])
 
     async def get_all_reactors(self, messages):
         """
