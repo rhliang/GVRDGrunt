@@ -54,6 +54,24 @@ channel_message_pattern = "channel([0-9]+)#message([0-9]+)"
 category_pattern = "category(.+)"
 
 
+class MissingChannel(object):
+    def __init__(self, id):
+        self.id = id
+
+    @property
+    def name(self):
+        return f"[missing channel {self.id}]"
+
+    def __str__(self):
+        return self.name
+
+
+class MissingCategory(MissingChannel):
+    @property
+    def name(self):
+        return f"[missing category {self.id}]"
+
+
 class RaidFYIDB(object):
     """
     A class representing the database we use to store our information.
@@ -110,7 +128,11 @@ class RaidFYIDB(object):
             chat_channel_id = int(re.match(chat_channel_pattern,
                                            chat_channel_config["config_channel_message"]).group(1))
             chat_channel = guild.get_channel(chat_channel_id)
+            if chat_channel is None:
+                chat_channel = MissingChannel(chat_channel_id)
             relay_channel = guild.get_channel(chat_channel_config["relay_channel"])
+            if relay_channel is None:
+                relay_channel = MissingChannel(chat_channel_config["relay_channel"])
             channel_mappings[chat_channel] = {
                 "relay_channel": relay_channel,
                 "timeout_in_hours": chat_channel_config["timeout_in_hours"]
@@ -129,7 +151,11 @@ class RaidFYIDB(object):
         for category_config in raw_category_mappings:
             category_id = int(re.match(category_pattern, category_config["config_channel_message"]).group(1))
             category = guild.get_channel(category_id)
+            if category is None:
+                category = MissingCategory(category_id)
             relay_channel = guild.get_channel(category_config["relay_channel"])
+            if relay_channel is None:
+                relay_channel = MissingChannel(category_config["relay_channel"])
             category_mappings[category] = {
                 "relay_channel": relay_channel,
                 "timeout_in_hours": category_config["timeout_in_hours"]
