@@ -91,6 +91,9 @@ class RaidFYIDB(object):
             if result["rsvp_emoji_type"] == "custom":
                 result["rsvp_emoji"] = emoji_converter(guild, result["rsvp_emoji"])
             del result["rsvp_emoji_type"]
+            if result["remote_emoji_type"] == "custom":
+                result["remote_emoji"] = emoji_converter(guild, result["remote_emoji"])
+            del result["remote_emoji_type"]
             if result["cancelled_emoji_type"] == "custom":
                 result["cancelled_emoji"] = emoji_converter(guild, result["cancelled_emoji"])
             del result["cancelled_emoji_type"]
@@ -165,6 +168,10 @@ class RaidFYIDB(object):
                 "relay_to_chat": None,
                 "rsvp_emoji": None,
                 "rsvp_emoji_type": None,
+                "remote_emoji": None,
+                "remote_emoji_type": None,
+                "cancelled_emoji": None,
+                "cancelled_emoji_type": None,
                 "timezone": tz_string
             }
         )
@@ -183,17 +190,26 @@ class RaidFYIDB(object):
             }
         )
 
-    def activate_enhanced_fyi(self, guild: discord.Guild, rsvp_emoji, cancelled_emoji, relay_to_chat: bool):
+    def activate_enhanced_fyi(
+            self,
+            guild: discord.Guild,
+            rsvp_emoji,
+            remote_emoji,
+            cancelled_emoji,
+            relay_to_chat: bool,
+    ):
         """
         Enable enhanced FYI functionality for the guild.
 
         :param guild:
         :param rsvp_emoji:
+        :param remote_emoji:
         :param cancelled_emoji:
         :param relay_to_chat:
         :return:
         """
         rsvp_emoji_type, rsvp_emoji_stored_value = emoji_to_db(rsvp_emoji)
+        remote_emoji_type, remote_emoji_stored_value = emoji_to_db(remote_emoji)
         cancelled_emoji_type, cancelled_emoji_stored_value = emoji_to_db(cancelled_emoji)
         self.table.update_item(
             Key={
@@ -203,6 +219,8 @@ class RaidFYIDB(object):
             UpdateExpression="SET enhanced = :enhanced, "
                              "rsvp_emoji = :rsvp_emoji, "
                              "rsvp_emoji_type = :rsvp_emoji_type, "
+                             "remote_emoji = :remote_emoji, "
+                             "remote_emoji_type = :remote_emoji_type, "
                              "cancelled_emoji = :cancelled_emoji, "
                              "cancelled_emoji_type = :cancelled_emoji_type, "
                              "relay_to_chat = :relay_to_chat",
@@ -210,6 +228,8 @@ class RaidFYIDB(object):
                 ":enhanced": True,
                 ":rsvp_emoji": rsvp_emoji_stored_value,
                 ":rsvp_emoji_type": rsvp_emoji_type,
+                ":remote_emoji": remote_emoji_stored_value,
+                ":remote_emoji_type": remote_emoji_type,
                 ":cancelled_emoji": cancelled_emoji_stored_value,
                 ":cancelled_emoji_type": cancelled_emoji_type,
                 ":relay_to_chat": relay_to_chat
@@ -231,11 +251,19 @@ class RaidFYIDB(object):
             UpdateExpression="SET enhanced = :enhanced, "
                              "rsvp_emoji = :rsvp_emoji, "
                              "rsvp_emoji_type = :rsvp_emoji_type, "
+                             "remote_emoji = :remote_emoji, "
+                             "remote_emoji_type = :remote_emoji_type, "
+                             "cancelled_emoji = :cancelled_emoji, "
+                             "cancelled_emoji_type = :cancelled_emoji_type, "
                              "relay_to_chat = :relay_to_chat",
             ExpressionAttributeValues={
                 ":enhanced": False,
                 ":rsvp_emoji": None,
                 ":rsvp_emoji_type": None,
+                ":remote_emoji": None,
+                ":remote_emoji_type": None,
+                ":cancelled_emoji": None,
+                ":cancelled_emoji_type": None,
                 ":relay_to_chat": None
             }
         )
