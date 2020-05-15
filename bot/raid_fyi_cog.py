@@ -244,6 +244,10 @@ class RaidFYICog(BotPermsChecker, Cog):
         :param channel:
         :return:
         """
+        # Do nothing if this channel does not have a category (this includes
+        # if the channel is itself a category!).
+        if channel.category is None:
+            return
         category_mapping_info = self.db.get_fyi_category(channel.category)
         if category_mapping_info is None:
             return
