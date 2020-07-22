@@ -1,6 +1,6 @@
 yarl == 1.1.1  # seems to break otherwise
 multidict == 4.5.2  # subsequent versions break as of Nov 23, 2019
-discord.py == 1.2.5
+discord.py == 1.3.4
 pyparsing
 awscli
 boto3
