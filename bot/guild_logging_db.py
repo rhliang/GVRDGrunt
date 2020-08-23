@@ -1,41 +1,31 @@
-import sqlite3
 import discord
+import boto3
 
 
 class GuildLoggingDB(object):
     """
     Handles persistent storage of guild logging information.
     """
-    def __init__(self, path_to_db):
-        self.path_to_db = path_to_db
-        # The database can be initialized with guild_logging_initialization.sql.
-        self.conn = sqlite3.connect(self.path_to_db)
+    def __init__(self, table_name="GuildLogging", *args, **kwargs):
+        # The database can be initialized with guild_logging.json.
+        self.db = boto3.resource("dynamodb", *args, **kwargs)
+        self.table = self.db.Table(table_name)
 
-    def get_logging_info(self, guild):
+    def get_logging_info(self, guild: discord.Guild):
         """
         Return the guild's logging information.
 
         :param guild:
         :return:
         """
-        with self.conn:
-            guild_info_cursor = self.conn.execute(
-                "select log_channel_id from guild_logging where guild_id = ?;",
-                (guild.id,)
-            )
-            guild_info_tuple = guild_info_cursor.fetchone()
+        response = self.table.get_item(Key={"guild_id": guild.id})
+        result = response.get("Item")
+        if result is None:
+            return
+        result["log_channel"] = guild.get_channel(result["log_channel"])
+        return result
 
-        if guild_info_tuple is None:
-            return None
-
-        return dict(
-            zip(
-                ["log_channel_id"],
-                guild_info_tuple
-            )
-        )
-
-    def configure_guild_logging(self, guild, log_channel: discord.TextChannel):
+    def configure_guild_logging(self, guild: discord.Guild, log_channel: discord.TextChannel):
         """
         Configure the guild's logging channel.
 
@@ -44,24 +34,18 @@ class GuildLoggingDB(object):
         :raises:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                """
-                insert into guild_logging (guild_id, log_channel_id)
-                values (?, ?);
-                """,
-                (guild.id, log_channel.id)
-            )
+        self.table.put_item(
+            Item={
+                "guild_id": guild.id,
+                "log_channel": log_channel.id
+            }
+        )
 
-    def clear_guild_logging(self, guild):
+    def clear_guild_logging(self, guild: discord.Guild):
         """
         Remove this guild's logging information from the database.
 
         :param guild:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                "delete from guild_logging where guild_id = ?;",
-                (guild.id,)
-            )
+        self.table.delete_item(Key={"guild_id": guild.id})

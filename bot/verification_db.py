@@ -1,14 +1,15 @@
-import sqlite3
 import discord
+import boto3
 
 from bot.convert_using_guild import role_converter, emoji_converter
+from bot.utils import emoji_to_db
 
 
 class VerificationDB(object):
     """
     A class representing the SQLite database we use to store our information.
     """
-    screenshot_fields_needed = (
+    SCREENSHOT_FIELDS_NEEDED = (
         "screenshot_channel",
         "help_channel",
         "denied_message",
@@ -21,7 +22,7 @@ class VerificationDB(object):
         "valor_emoji_type"
     )
 
-    all_fields = (
+    ALL_FIELDS = (
         ("screenshot_channel", "channel"),
         ("help_channel", "channel"),
         ("denied_message", "string"),
@@ -36,9 +37,12 @@ class VerificationDB(object):
         ("welcome_channel", "channel")
     )
 
-    def __init__(self, path_to_db):
-        self.path_to_db = path_to_db
-        self.conn = sqlite3.connect(self.path_to_db)  # database can be initialized with verification_initialization.sql
+    TEAMS = ("instinct", "mystic", "valor")
+
+    def __init__(self, table_name="GuildVerification", *args, **kwargs):
+        # The database can be initialized with verification_initialization.json.
+        self.db = boto3.resource("dynamodb", *args, **kwargs)
+        self.table = self.db.Table(table_name)
 
     def get_verification_info(self, guild):
         """
@@ -47,78 +51,30 @@ class VerificationDB(object):
         :param guild:
         :return:
         """
-        with self.conn:
-            query = f"""\
-            select {", ".join([x[0] for x in self.all_fields])}
-            from verification_info 
-            where guild_id = ?;
-            """,
-            (guild.id,)
-            verification_info_cursor = self.conn.execute(
-                f"""\
-                select {", ".join([x[0] for x in self.all_fields])}
-                from verification_info 
-                where guild_id = ?;
-                """,
-                (guild.id,)
-            )
-            verification_info_tuple = verification_info_cursor.fetchone()
-        if verification_info_tuple is None:
-            return None
+        response = self.table.get_item(Key={"guild_id": guild.id})
+        result = response.get("Item")
+        if result is None:
+            return
 
-        with self.conn:
-            verification_info_cursor = self.conn.execute(
-                f"""\
-                select instinct_emoji_type, mystic_emoji_type, valor_emoji_type
-                from verification_info 
-                where guild_id = ?;
-                """,
-                (guild.id,)
-            )
-            emoji_tuple = verification_info_cursor.fetchone()
-        team_emoji_types = dict(zip(("instinct", "mystic", "valor"), emoji_tuple))
-
-        standard_roles = []
-        mandatory_roles = []
-        with self.conn:
-            guild_roles_cursor = self.conn.execute(
-                """
-                select role_id, mandatory
-                from guild_standard_roles
-                where guild_id = ?;
-                """,
-                (guild.id,)
-            )
-            for role_id, mandatory in guild_roles_cursor:
-                role = role_converter(guild, role_id)
-                if mandatory:
-                    mandatory_roles.append(role)
-                else:
-                    standard_roles.append(role)
-
-        converted_results = []
-        for i, (field_name, field_type) in enumerate(self.all_fields):
-            converted_result = verification_info_tuple[i]
-            if converted_result is not None:
+        final_results = {}
+        for field_name, field_type in self.ALL_FIELDS:
+            raw_field = result[field_name]
+            converted_result = raw_field
+            if raw_field is not None:
                 if field_type == "channel":
-                    converted_result = guild.get_channel(verification_info_tuple[i])
+                    converted_result = guild.get_channel(raw_field)
                 elif field_type == "role":
-                    converted_result = role_converter(guild, verification_info_tuple[i])
+                    converted_result = role_converter(guild, raw_field)
                 elif field_type == "emoji_or_string":
                     # This is a team emoji; extract the team from the field name.
                     team = field_name.split("_")[0]
-                    if team_emoji_types[team] == "custom":
-                        converted_result = emoji_converter(guild, verification_info_tuple[i])
-            converted_results.append(converted_result)
+                    if result[f"{team}_emoji_type"] == "custom":
+                        converted_result = emoji_converter(guild, raw_field)
+            final_results[field_name] = converted_result
 
-        final_results = dict(
-            zip(
-                [field_name for field_name, _ in self.all_fields],
-                converted_results
-            )
-        )
-        final_results["standard_roles"] = standard_roles
-        final_results["mandatory_roles"] = mandatory_roles
+        final_results["standard_roles"] = [role_converter(guild, role_id) for role_id in result["standard_roles"]]
+        final_results["mandatory_roles"] = [role_converter(guild, role_id) for role_id in result["mandatory_roles"]]
+
         return final_results
 
     def register_guild(self, guild):
@@ -128,13 +84,11 @@ class VerificationDB(object):
         :param guild:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                """
-                insert into verification_info (guild_id) values(?);
-                """,
-                (guild.id,)
-            )
+        blank_record = dict(zip([field_name for field_name, _ in self.ALL_FIELDS], [None for _, _ in self.ALL_FIELDS]))
+        blank_record["guild_id"] = guild.id
+        for team in self.TEAMS:
+            blank_record[f"{team}_emoji_type"] = None
+        self.table.put_item(Item=blank_record)
 
     def set_channel(self, guild, channel: discord.TextChannel, type):
         """
@@ -147,18 +101,11 @@ class VerificationDB(object):
         """
         if type not in ("screenshot", "help"):
             raise discord.InvalidArgument('channel type must be one of "screenshot", or "help"')
-        with self.conn:
-            self.conn.execute(
-                f"""
-                update verification_info
-                set {type}_channel = ?
-                where guild_id = ?;
-                """,
-                (
-                    channel.id,
-                    guild.id
-                )
-            )
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression=f"SET {type}_channel = :channel",
+            ExpressionAttributeValues={":channel": channel.id}
+        )
 
     def set_denied_message(self, guild, denied_message):
         """
@@ -168,18 +115,11 @@ class VerificationDB(object):
         :param denied_message:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                f"""
-                update verification_info
-                set denied_message = ?
-                where guild_id = ?;
-                """,
-                (
-                    denied_message,
-                    guild.id
-                )
-            )
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression="SET denied_message = :denied_message",
+            ExpressionAttributeValues={":denied_message": denied_message}
+        )
 
     def set_welcome_role(self, guild, welcome_role: discord.Role):
         """
@@ -189,18 +129,11 @@ class VerificationDB(object):
         :param welcome_role:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                """
-                update verification_info
-                set welcome_role = ?
-                where guild_id = ?;
-                """,
-                (
-                    welcome_role.id,
-                    guild.id
-                )
-            )
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression="SET welcome_role = :welcome_role_id",
+            ExpressionAttributeValues={":welcome_role_id": welcome_role.id}
+        )
 
     def team_name_validator(self, team):
         """
@@ -209,7 +142,7 @@ class VerificationDB(object):
         :param team:
         :return:
         """
-        if team.lower() not in ("instinct", "mystic", "valor"):
+        if team.lower() not in self.TEAMS:
             raise discord.InvalidArgument('team must be one of "instinct", "mystic", or "valor" (case-insensitive)')
 
     def set_team_role(self, guild, team, role: discord.Role):
@@ -222,18 +155,11 @@ class VerificationDB(object):
         :return:
         """
         self.team_name_validator(team)
-        with self.conn:
-            self.conn.execute(
-                f"""
-                update verification_info
-                set {team.lower()}_role = ?
-                where guild_id = ?;
-                """,
-                (
-                    role.id,
-                    guild.id
-                )
-            )
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression=f"SET {team.lower()}_role = :team_role_id",
+            ExpressionAttributeValues={":team_role_id": role.id}
+        )
 
     def set_team_emoji(self, guild, team, emoji):
         """
@@ -245,25 +171,16 @@ class VerificationDB(object):
         :return:
         """
         self.team_name_validator(team)
-        emoji_type = "normal"
-        emoji_stored_value = emoji
-        if isinstance(emoji, discord.Emoji):
-            emoji_type = "custom"
-            emoji_stored_value = emoji.id
-        with self.conn:
-            self.conn.execute(
-                f"""
-                update verification_info
-                set {team.lower()}_emoji = ?,
-                {team.lower()}_emoji_type = ?
-                where guild_id = ?;
-                """,
-                (
-                    emoji_stored_value,
-                    emoji_type,
-                    guild.id
-                )
-            )
+        emoji_type, emoji_stored_value = emoji_to_db(emoji)
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression=f"SET {team.lower()}_emoji = :team_emoji_stored_value, "
+                             f"{team.lower()}_emoji_type = :team_emoji_type",
+            ExpressionAttributeValues={
+                ":team_emoji_stored_value": emoji_stored_value,
+                ":team_emoji_type": emoji_type
+            }
+        )
 
     def set_welcome(self, guild, welcome_message, welcome_channel: discord.TextChannel):
         """
@@ -274,20 +191,15 @@ class VerificationDB(object):
         :param welcome_channel:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                """
-                update verification_info
-                set welcome_message = ?,
-                welcome_channel = ?
-                where guild_id = ?;
-                """,
-                (
-                    welcome_message,
-                    welcome_channel.id,
-                    guild.id
-                )
-            )
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression="SET welcome_message = :welcome_message, "
+                             "welcome_channel = :welcome_channel_id",
+            ExpressionAttributeValues={
+                ":welcome_message": welcome_message,
+                ":welcome_channel_id": welcome_channel.id
+            }
+        )
 
     def add_standard_role(self, guild, role: discord.Role, mandatory: bool):
         """
@@ -295,22 +207,36 @@ class VerificationDB(object):
 
         If mandatory is True, it's marked as a mandatory verification role.
 
+        Assume that the guild has an existing record in the database.
+
         :param guild:
         :param role:
         :param mandatory:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                """
-                insert into guild_standard_roles (guild_id, role_id, mandatory) values(?, ?, ?);
-                """,
-                (
-                    guild.id,
-                    role.id,
-                    mandatory
-                )
-            )
+        existing_info = self.get_verification_info(guild)
+        if not mandatory:
+            if role in existing_info["standard_roles"]:
+                raise ValueError("Role is already in this guild's standard roles")
+            new_standard_role_ids = existing_info["standard_roles"] + [role.id]
+            new_mandatory_role_ids = existing_info["mandatory_roles"]
+
+        else:
+            if role in existing_info["mandatory_roles"]:
+                raise ValueError("Role is already in this guild's mandatory roles")
+            # Remove this from the standard roles if it's there, and add it to the mandatory roles.
+            new_standard_role_ids = [x for x in existing_info["standard_roles"] if x != role.id]
+            new_mandatory_role_ids = existing_info["mandatory_roles"] + [role.id]
+
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression="SET standard_roles = :new_standard_role_ids, "
+                             "mandatory_roles = :new_mandatory_role_ids",
+            ExpressionAttributeValues={
+                ":new_standard_role_ids": new_standard_role_ids,
+                ":new_mandatory_role_ids": new_mandatory_role_ids
+            }
+        )
 
     def clear_roles(self, guild):
         """
@@ -319,8 +245,11 @@ class VerificationDB(object):
         :param guild:
         :return:
         """
-        with self.conn:
-            self.conn.execute(
-                "delete from guild_standard_roles where guild_id = ?;",
-                (guild.id,)
-            )
+        self.table.update_item(
+            Key={"guild_id": guild.id},
+            UpdateExpression="SET standard_roles = :standard_roles, mandatory_roles = :mandatory_roles",
+            ExpressionAttributeValues={
+                ":standard_roles": [],
+                ":mandatory_roles": []
+            }
+        )
