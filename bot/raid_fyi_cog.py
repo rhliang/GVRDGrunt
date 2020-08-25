@@ -764,7 +764,8 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
             audience = set(fyi_info["interested"] + [fyi_info["creator"]])
             if len(audience) != 0:
                 audience_str = " ".join([self.mention_member_or_id(x) for x in audience])
-                inset_fyi_text = "> " + fyi_info["edit_history"][-1].replace("\n", "\n> ")
+                clean_fyi_text = discord.utils.escape_mentions(fyi_info["edit_history"][-1])
+                inset_fyi_text = "> " + clean_fyi_text.replace("\n", "\n> ")
                 deletion_ping = (f"{audience_str} the FYI you were interested in has been removed:\n"
                                  f"{inset_fyi_text}")
                 await fyi_info["chat_channel"].send(deletion_ping)
