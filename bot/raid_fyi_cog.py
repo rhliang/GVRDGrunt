@@ -768,7 +768,14 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
                 inset_fyi_text = "> " + clean_fyi_text.replace("\n", "\n> ")
                 deletion_ping = (f"{audience_str} the FYI you were interested in has been removed:\n"
                                  f"{inset_fyi_text}")
-                await fyi_info["chat_channel"].send(deletion_ping)
+                await fyi_info["chat_channel"].send(
+                    deletion_ping,
+                    allowed_mentions=discord.AllowedMentions(
+                        everyone=False,
+                        roles=False,
+                        users=audience
+                    )
+                )
 
         self.db.deactivate_fyi(guild, fyi_info["chat_channel"], fyi_info["command_message_id"])
 

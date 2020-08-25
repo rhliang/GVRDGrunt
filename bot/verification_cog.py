@@ -353,23 +353,26 @@ class VerificationCog(BotPermsChecker, Cog):
         denied_message = guild_info["denied_message"] if guild_info["denied_message"] is not None else "(none)"
 
         await ctx.message.channel.send(
-            discord.utils.escape_mentions(
-                self.summary_str_template.format(
-                    guild_info["screenshot_channel"],
-                    guild_info["help_channel"],
-                    guild_info["welcome_role"],
-                    guild_info["instinct_role"],
-                    guild_info["mystic_role"],
-                    guild_info["valor_role"],
-                    guild_info["instinct_emoji"],
-                    guild_info["mystic_emoji"],
-                    guild_info["valor_emoji"],
-                    guild_info["welcome_channel"],
-                    role_list_strings["standard"],
-                    role_list_strings["mandatory"],
-                    welcome_message,
-                    denied_message
-                )
+            self.summary_str_template.format(
+                guild_info["screenshot_channel"],
+                guild_info["help_channel"],
+                guild_info["welcome_role"],
+                guild_info["instinct_role"],
+                guild_info["mystic_role"],
+                guild_info["valor_role"],
+                guild_info["instinct_emoji"],
+                guild_info["mystic_emoji"],
+                guild_info["valor_emoji"],
+                guild_info["welcome_channel"],
+                role_list_strings["standard"],
+                role_list_strings["mandatory"],
+                welcome_message,
+                denied_message
+            ),
+            allowed_mentions=discord.AllowedMentions(
+                everyone=False,
+                roles=False,
+                users=False
             )
         )
 
