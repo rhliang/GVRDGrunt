@@ -70,7 +70,6 @@ def main():
         intents=intents
     )
 
-    logging_db = GuildLoggingDB(settings["sqlite_db"])
     ex_db = EXGateDB(settings["sqlite_db"])
     role_reaction_subscription_db = RoleReactionSubscriptionDB(settings["sqlite_db"])
     no_command_subscription_db = NoCommandSubscriptionDB(settings["sqlite_db"])
