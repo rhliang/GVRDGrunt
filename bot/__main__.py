@@ -3,6 +3,9 @@ import asyncio
 import json
 import logging
 
+import discord
+intents = discord.Intents.default()
+intents.members = True
 from discord.ext import commands
 
 from bot.baconpatroll_cog import BaconpaTrollCog
@@ -63,7 +66,8 @@ def main():
     gvrd_grunt = BadBot(
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
         description="A grunt worker for the GVRD servers' needs",
-        loop=loop
+        loop=loop,
+        intents=intents
     )
 
     logging_db = GuildLoggingDB(settings["sqlite_db"])
