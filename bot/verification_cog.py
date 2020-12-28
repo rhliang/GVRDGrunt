@@ -3,6 +3,7 @@ import discord
 from discord.ext.commands import command, has_permissions, BadArgument, EmojiConverter, Cog
 
 from bot.convert_using_guild import role_converter_from_name
+from bot.bot_perms_cog import BotPermsChecker
 
 __author__ = 'Richard Liang'
 
@@ -15,7 +16,7 @@ class VerificationNotConfigured(Exception):
     pass
 
 
-class VerificationCog(Cog):
+class VerificationCog(BotPermsChecker, Cog):
     """
     A cog that handles verification of users in the GVRD guilds.
     """
@@ -31,9 +32,9 @@ class VerificationCog(Cog):
     approved = "👍"
     denied = "👎"
 
-    def __init__(self, bot, db):
-        self.bot = bot
-        self.db = db  # a GuildInfoDB object or workalike
+    def __init__(self, bot, db, bot_permissions_db):
+        super(VerificationCog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
+        self.db = db  # a VerificationDB object or workalike
         self.member_to_screenshot = {}  # maps member -|-> the member's most recent unverified screenshot
         self.screenshot_to_member = {}  # the converse mapping
 
@@ -47,13 +48,13 @@ class VerificationCog(Cog):
         return guild.get_member(self.bot.user.id)
 
     @command()
-    @has_permissions(administrator=True)
     async def register_guild(self, ctx):
         """
         Register this guild with the bot.
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.db.register_guild(ctx.guild)
         await ctx.message.channel.send(
             f'{ctx.author.mention} This guild has been registered with {self.get_bot_member(ctx.guild).name} '
@@ -80,7 +81,6 @@ class VerificationCog(Cog):
             raise VerificationNotRegistered("The guild must first be registered with the bot.")
 
     @command()
-    @has_permissions(administrator=True)
     async def configure_channel(self, ctx, channel_type, channel: discord.TextChannel):
         """
         Helper that performs guild channel configuration for the screenshot and help channels.
@@ -89,6 +89,7 @@ class VerificationCog(Cog):
         :param channel:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         # First, check that the client can write to this channel.
@@ -103,7 +104,6 @@ class VerificationCog(Cog):
         await ctx.message.channel.send(f'{ctx.author.mention} {channel_type} channel set to {channel}.')
 
     @command()
-    @has_permissions(administrator=True)
     async def configure_welcome_role(self, ctx, role: discord.Role):
         """
         Set this guild's welcome role.
@@ -113,13 +113,13 @@ class VerificationCog(Cog):
         :param role:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         self.db.set_welcome_role(ctx.guild, role)
         await ctx.message.channel.send(f"{ctx.author.mention} This guild's welcome role has been set to: {role.id}")
 
     @command()
-    @has_permissions(administrator=True)
     async def configure_team_emoji(self, ctx, team, emoji):
         """
         Update the guild information in the database with the given team's emoji.
@@ -129,6 +129,7 @@ class VerificationCog(Cog):
         :param emoji:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         emoji_converter = EmojiConverter()
@@ -143,7 +144,6 @@ class VerificationCog(Cog):
         )
 
     @command()
-    @has_permissions(administrator=True)
     async def configure_team_role(self, ctx, team, role: discord.Role):
         """
         Update the guild information in the database with the given team's snowflake.
@@ -153,6 +153,7 @@ class VerificationCog(Cog):
         :param role:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         self.db.set_team_role(ctx.guild, team, role)
@@ -161,7 +162,6 @@ class VerificationCog(Cog):
         )
 
     @command()
-    @has_permissions(administrator=True)
     async def configure_guild_welcome(self, ctx, welcome_channel: discord.TextChannel, welcome_message):
         """
         Configure how this guild welcomes newly verified members.
@@ -175,6 +175,7 @@ class VerificationCog(Cog):
         :param welcome_message:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         # First, check that the client can write to this channel.
@@ -192,7 +193,6 @@ class VerificationCog(Cog):
         )
 
     @command()
-    @has_permissions(administrator=True)
     async def configure_denied_message(self, ctx, denied_message):
         """
         Configure how this guild messages members whose verification failed.
@@ -206,6 +206,7 @@ class VerificationCog(Cog):
         :param welcome_message:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         self.db.set_denied_message(ctx.guild, denied_message)
@@ -231,7 +232,7 @@ class VerificationCog(Cog):
         if guild_info is None:
             raise RuntimeError("Guild information has been corrupted in the database")
 
-        must_be_set = [field_name for field_name, _ in self.db.all_fields]
+        must_be_set = [field_name for field_name, _ in self.db.ALL_FIELDS]
         if any([guild_info[x] is None for x in must_be_set]):
             return False
         return True
@@ -247,7 +248,6 @@ class VerificationCog(Cog):
             raise VerificationNotConfigured("Basic guild configuration must be finished first.")
 
     @command()
-    @has_permissions(administrator=True)
     async def add_mandatory_role(self, ctx, role: discord.Role):
         """
         Add a role to the list of roles that *must* be given to a user on verification.
@@ -256,15 +256,16 @@ class VerificationCog(Cog):
         :param role:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_fully_configured_validator(ctx.guild)
-
-        self.db.add_standard_role(ctx.guild, role, mandatory=True)
-        await ctx.message.channel.send(
-            f"{ctx.author.mention} Role {role} has been added to this guild's mandatory roles"
-        )
+        reply = f"{ctx.author.mention} Role {role} has been added to this guild's mandatory roles"
+        try:
+            self.db.add_standard_role(ctx.guild, role, mandatory=True)
+        except ValueError:
+            reply = f"{ctx.author.mention} Role {role} is already a mandatory role"
+        await ctx.message.channel.send(reply)
 
     @command()
-    @has_permissions(administrator=True)
     async def add_standard_role(self, ctx, role: discord.Role):
         """
         Add a role to the list of roles given to a user on a standard verification.
@@ -273,15 +274,16 @@ class VerificationCog(Cog):
         :param role:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_fully_configured_validator(ctx.guild)
-
-        self.db.add_standard_role(ctx.guild, role, mandatory=False)
-        await ctx.message.channel.send(
-            f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
-        )
+        reply = f"{ctx.author.mention} Role {role} has been added to this guild's standard roles"
+        try:
+            self.db.add_standard_role(ctx.guild, role, mandatory=False)
+        except ValueError:
+            reply = f"{ctx.author.mention} Role {role} is already a standard role"
+        await ctx.message.channel.send(reply)
 
     @command()
-    @has_permissions(administrator=True)
     async def clear_roles(self, ctx):
         """
         Clear the list of roles given to a user on a standard verification.
@@ -291,6 +293,7 @@ class VerificationCog(Cog):
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_fully_configured_validator(ctx.guild)
 
         self.db.clear_roles(ctx.guild)
@@ -321,8 +324,10 @@ class VerificationCog(Cog):
         """
     )
 
-    @command(help="Display the guild configuration.")
-    @has_permissions(manage_roles=True)
+    @command(
+        help="Display the guild configuration.",
+        aliases=["show_settings", "show_verification_settings", "show_verification_config"]
+    )
     async def showsettings(self, ctx):
         """
         Check the stored guild configuration.
@@ -330,6 +335,7 @@ class VerificationCog(Cog):
         :param ctx:
         :return:
         """
+        self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
 
         guild_info = self.db.get_verification_info(ctx.guild)
