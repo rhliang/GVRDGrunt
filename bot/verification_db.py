@@ -88,7 +88,7 @@ class VerificationDB(object):
         blank_record["guild_id"] = guild.id
         for team in self.TEAMS:
             blank_record[f"{team}_emoji_type"] = None
-        self.table.put_item(Item=blank_record)
+        self.table.put_item(Item=blank_record, ConditionExpression="attribute_not_exists(guild_id)")
 
     def set_channel(self, guild, channel: discord.TextChannel, type):
         """
@@ -218,23 +218,23 @@ class VerificationDB(object):
         if not mandatory:
             if role in existing_info["standard_roles"]:
                 raise ValueError("Role is already in this guild's standard roles")
-            new_standard_role_ids = existing_info["standard_roles"] + [role.id]
-            new_mandatory_role_ids = existing_info["mandatory_roles"]
+            new_standard_roles = existing_info["standard_roles"] + [role]
+            new_mandatory_roles = existing_info["mandatory_roles"]
 
         else:
             if role in existing_info["mandatory_roles"]:
                 raise ValueError("Role is already in this guild's mandatory roles")
             # Remove this from the standard roles if it's there, and add it to the mandatory roles.
-            new_standard_role_ids = [x for x in existing_info["standard_roles"] if x != role.id]
-            new_mandatory_role_ids = existing_info["mandatory_roles"] + [role.id]
+            new_standard_roles = [x for x in existing_info["standard_roles"] if x.id != role.id]
+            new_mandatory_roles = existing_info["mandatory_roles"] + [role]
 
         self.table.update_item(
             Key={"guild_id": guild.id},
             UpdateExpression="SET standard_roles = :new_standard_role_ids, "
                              "mandatory_roles = :new_mandatory_role_ids",
             ExpressionAttributeValues={
-                ":new_standard_role_ids": new_standard_role_ids,
-                ":new_mandatory_role_ids": new_mandatory_role_ids
+                ":new_standard_role_ids": [x.id for x in new_standard_roles],
+                ":new_mandatory_role_ids": [x.id for x in new_mandatory_roles]
             }
         )
 

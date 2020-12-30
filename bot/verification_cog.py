@@ -55,11 +55,17 @@ class VerificationCog(BotPermsChecker, Cog):
         :return:
         """
         self.can_configure_bot_validator(ctx)
-        self.db.register_guild(ctx.guild)
-        await ctx.message.channel.send(
-            f'{ctx.author.mention} This guild has been registered with {self.get_bot_member(ctx.guild).name} '
-            f'and may now be configured.'
-        )
+        try:
+            self.db.register_guild(ctx.guild)
+            await ctx.message.channel.send(
+                f'{ctx.author.mention} This guild has been registered with {self.get_bot_member(ctx.guild).name} '
+                f'and may now be configured.'
+            )
+        except self.db.db.meta.client.exceptions.ConditionalCheckFailedException:
+            await ctx.message.channel.send(
+                f'{ctx.author.mention} This guild was already registered with '
+                f'{self.get_bot_member(ctx.guild).name}.'
+            )
 
     def is_guild_registered(self, guild):
         """
