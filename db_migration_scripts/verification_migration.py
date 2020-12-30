@@ -40,11 +40,11 @@ def get_all_verification_configuration(conn, new_table_name="GuildVerification")
                     guild_config[f"{team}_emoji"] = {"NULL": True}
                     guild_config[f"{team}_emoji_type"] = {"NULL": True}
                 else:
-                    guild_config[f"{team}_emoji_type"] = {"S": guild_config[f"{team}_emoji_type"]}
                     if guild_config[f"{team}_emoji_type"] == "custom":
                         guild_config[f"{team}_emoji"] = {"N": str(guild_config[f"{team}_emoji"])}
                     else:
                         guild_config[f"{team}_emoji"] = {"S": guild_config[f"{team}_emoji"]}
+                    guild_config[f"{team}_emoji_type"] = {"S": guild_config[f"{team}_emoji_type"]}
 
             # Retrieve all standard roles for this guild.
             channel_mapping_cursor = conn.execute(
