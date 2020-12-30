@@ -26,9 +26,15 @@ In the configuration file, you must set the following:
 * `log_file`: absolute path to the log file
 * `endpoint_url`: address of the Amazon DynamoDB service to use (useful if running the local development version)
 * `aws_access_key_id`: DynamoDB credentials
-* `aws_secret_access_key` DynamoDB credentials
+* `aws_secret_access_key`: DynamoDB credentials
+* `region_name`: DynamoDB credentials
 * `fyi_clean_up_hours`, `fyi_clean_up_minutes`, `fyi_clean_up_seconds`: sets the time interval between the times
 the bot cleans up FYIs
+* the names of the tables used by the different cogs; right now, this is:
+    * `fyi_table`
+    * `bot_perms_table`
+    * `verification_table`
+    * `guild_logging_table`
 
 The preferred deployment method for GVRDGrunt is via Docker.  The provided Dockerfile is configured to
 look for the JSON configuration file inside the container at `/config/gvrd_grunt_config.json`, so make sure 
