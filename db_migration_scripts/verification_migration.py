@@ -26,20 +26,25 @@ def get_all_verification_configuration(conn, new_table_name="GuildVerification")
                 "mystic_role": {"N": str(row[6])},
                 "valor_role": {"N": str(row[7])},
                 "instinct_emoji": row[8],  # this is post-processed
-                "instinct_emoji_type": {"S": row[9]},
+                "instinct_emoji_type": row[9],  # as is this
                 "mystic_emoji": row[10],  # this is post-processed
-                "mystic_emoji_type": {"S": row[11]},
+                "mystic_emoji_type": row[11],  # etc
                 "valor_emoji": row[12],  # this is post-processed
-                "valor_emoji_type": {"S": row[13]},
+                "valor_emoji_type": row[13],  # etc
                 "welcome_message": {"S": row[14]},
                 "welcome_channel": {"N": str(row[15])}
             }
 
             for team in ("instinct", "mystic", "valor"):
-                if guild_config[f"{team}_emoji_type"]["S"] == "custom":
-                    guild_config[f"{team}_emoji"] = {"N": str(guild_config[f"{team}_emoji"])}
+                if guild_config[f"{team}_emoji"] is None:
+                    guild_config[f"{team}_emoji"] = {"NULL": True}
+                    guild_config[f"{team}_emoji_type"] = {"NULL": True}
                 else:
-                    guild_config[f"{team}_emoji"] = {"S": guild_config[f"{team}_emoji"]}
+                    guild_config[f"{team}_emoji_type"] = {"S": guild_config[f"{team}_emoji_type"]}
+                    if guild_config[f"{team}_emoji_type"] == "custom":
+                        guild_config[f"{team}_emoji"] = {"N": str(guild_config[f"{team}_emoji"])}
+                    else:
+                        guild_config[f"{team}_emoji"] = {"S": guild_config[f"{team}_emoji"]}
 
             # Retrieve all standard roles for this guild.
             channel_mapping_cursor = conn.execute(
