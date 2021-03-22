@@ -425,7 +425,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
 
             # If we're configured for it, look for a friend code.
             friend_code = None
-            if (self.friend_code_server_headers is not None
+            if (self.friend_code_server_headers["x-api-key"] is not None
                     and self.friend_code_url_template is not None):
                 resp = requests.get(
                     self.friend_code_url_template.format(person.id),
@@ -1015,7 +1015,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         :param friend_code: the user's friend code
         :return:
         """
-        if (self.friend_code_server_headers is None
+        if (self.friend_code_server_headers["x-api-key"] is None
                 or self.friend_code_url_template is None):
             return
 
@@ -1045,7 +1045,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         :param ctx:
         :return:
         """
-        if (self.friend_code_server_headers is None
+        if (self.friend_code_server_headers["x-api-key"] is None
                 or self.friend_code_url_template is None):
             return
 
