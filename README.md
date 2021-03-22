@@ -35,6 +35,9 @@ the bot cleans up FYIs
     * `bot_perms_table`
     * `verification_table`
     * `guild_logging_table`
+* `friend_code_server_template` (optional): a template string used to make requests to a 
+"friend code server" via a RESTful API
+* `friend_code_x_api_key` (optional): authentication key for the aforementioned friend code server
 
 The preferred deployment method for GVRDGrunt is via Docker.  The provided Dockerfile is configured to
 look for the JSON configuration file inside the container at `/config/gvrd_grunt_config.json`, so make sure 
@@ -515,3 +518,11 @@ also periodically done automatically by the bot, so you should normally not need
 ##### `.fyi [fyi text]`
 This command is the actual FYI command.  Everything after `.fyi` will be posted to the corresponding FYI channel.
 Any user may use this command.
+
+##### `.set_friend_code [friend code]`
+This associates the specified friend code with the caller's Discord account.  If the bot has a 
+friend code server set up, this will be shown in FYIs that the caller has responded to.  This also
+responds to `.setfc` or `.set_fc`.
+
+##### `.unset_friend_code`
+This disassociates the caller's friend code from their Discord account in the friend code server.

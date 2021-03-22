@@ -13,5 +13,7 @@
   "fyi_clean_up_minutes": 0,
   "fyi_clean_up_seconds": 0,
   "verification_table": "GuildVerification",
-  "guild_logging_table": "GuildLogging"
+  "guild_logging_table": "GuildLogging",
+  "friend_code_server_template": null,
+  "friend_code_x_api_key": null
 }

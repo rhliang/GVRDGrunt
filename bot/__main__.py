@@ -117,7 +117,9 @@ def main():
             settings["fyi_clean_up_minutes"],
             settings["fyi_clean_up_seconds"],
             bot_perms_db,
-            logging_cog=logging_cog
+            settings.get("friend_code_server_template"),
+            settings.get("friend_code_x_api_key"),
+            logging_cog=logging_cog,
         )
     )
     gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db, bot_perms_db))

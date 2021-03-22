@@ -4,6 +4,7 @@ import re
 import io
 import json
 from datetime import datetime, timezone, timedelta
+import requests
 
 import discord
 from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
@@ -31,11 +32,19 @@ class RaidFYICog(BotPermsChecker, Cog):
             clean_up_minutes,
             clean_up_seconds,
             bot_permissions_db,
+            friend_code_url_template=None,
+            friend_code_server_x_api_key=None,
             logging_cog=None
     ):
         super(RaidFYICog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
         self.db = db  # a RaidFYIDB or workalike
         self.logging_cog = logging_cog  # a GuildLoggingCog or workalike
+        self.friend_code_url_template = friend_code_url_template
+        self.friend_code_server_headers = {
+            "x-api-key": friend_code_server_x_api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
         self.clean_up_fyis_loop.change_interval(
             hours=clean_up_hours,
             minutes=clean_up_minutes,
@@ -398,8 +407,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         )
         return relay_message
 
-    @staticmethod
-    def build_interested_users_list_string(interested):
+    def build_interested_users_list_string(self, interested):
         """
         Build a string representation of the interested users.
         :param interested: a dictionary mapping member -> [reactions used by the user]
@@ -414,7 +422,21 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
                     person_reaction_strings.append(emoji)
                 else:  # this is a custom emoji
                     person_reaction_strings.append(f"<:{emoji.name}:{emoji.id}>")
-            user_entries.append(f"{person.mention} ({', '.join(person_reaction_strings)})")
+
+            # If we're configured for it, look for a friend code.
+            friend_code = None
+            if (self.friend_code_server_headers is not None
+                    and self.friend_code_url_template is not None):
+                resp = requests.get(
+                    self.friend_code_url_template.format(person.id),
+                    headers=self.friend_code_server_headers
+                )
+                friend_code = resp.json()["friendCode"] if resp.status_code == 200 else None
+
+            user_entry = f"{person.mention} ({', '.join(person_reaction_strings)})"
+            if friend_code is not None:
+                user_entry += f" [{friend_code}]"
+            user_entries.append(user_entry)
 
         interested_str = "\n".join(user_entries)
         return interested_str
@@ -981,3 +1003,56 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
     @clean_up_fyis_loop.before_loop
     async def before_clean_up_fyis(self):
         await self.bot.wait_until_ready()
+
+    @command(
+        help="Associate a friend code with your Discord account.",
+        aliases=("setfc", "set_fc")
+    )
+    async def set_friend_code(self, ctx, *, friend_code):
+        """
+        Associate a friend code with the caller's Discord account.
+        :param ctx:
+        :param friend_code: the user's friend code
+        :return:
+        """
+        if (self.friend_code_server_headers is None
+                or self.friend_code_url_template is None):
+            return
+
+        resp = requests.put(
+            self.friend_code_url_template.format(ctx.author.id),
+            headers=self.friend_code_server_headers,
+            data=json.dumps({"friendCode": friend_code})
+        )
+
+        if resp.status_code == 200:
+            await ctx.message.add_reaction("🆗")
+        else:
+            await ctx.reply(
+                """Please input your 12 digit Pokemon Go friend code (spaces or dashes are okay).  Example:
+```
+.setfc 1234 5678 9012
+```"""
+            )
+
+    @command(
+        help="Remove your friend code from the system.",
+        aliases=("unsetfc", "unset_fc", "deletefc", "delete_fc", "delete_friend_code")
+    )
+    async def unset_friend_code(self, ctx):
+        """
+        De-associate the caller's friend code from their Discord account.
+        :param ctx:
+        :return:
+        """
+        if (self.friend_code_server_headers is None
+                or self.friend_code_url_template is None):
+            return
+
+        resp = requests.delete(
+            self.friend_code_url_template.format(ctx.author.id),
+            headers=self.friend_code_server_headers,
+        )
+
+        if resp.status_code == 200:
+            await ctx.message.add_reaction("🆗")
