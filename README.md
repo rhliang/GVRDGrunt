@@ -525,4 +525,6 @@ friend code server set up, this will be shown in FYIs that the caller has respon
 responds to `.setfc` or `.set_fc`.
 
 ##### `.unset_friend_code`
-This disassociates the caller's friend code from their Discord account in the friend code server.
+This disassociates the caller's friend code from their Discord account in the friend code server.  
+Other aliases for this command: `.unsetfc`, `.unset_fc`, `.deletefc`, `.delete_fc`, and
+`.delete_friend_code`.
