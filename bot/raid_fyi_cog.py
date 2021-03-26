@@ -5,6 +5,7 @@ import io
 import json
 from datetime import datetime, timezone, timedelta
 import requests
+import asyncio
 
 import discord
 from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
@@ -34,6 +35,8 @@ class RaidFYICog(BotPermsChecker, Cog):
             bot_permissions_db,
             friend_code_url_template=None,
             friend_code_server_x_api_key=None,
+            friend_code_cleanup_delay=15,
+            friend_code_suppress_code_reaction="🔏",
             logging_cog=None
     ):
         super(RaidFYICog, self).__init__(bot, bot_permissions_db)  # a BotPermsDB or workalike
@@ -45,6 +48,8 @@ class RaidFYICog(BotPermsChecker, Cog):
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        self.friend_code_cleanup_delay = friend_code_cleanup_delay
+        self.friend_code_suppress_code_reaction = friend_code_suppress_code_reaction
         self.clean_up_fyis_loop.change_interval(
             hours=clean_up_hours,
             minutes=clean_up_minutes,
@@ -416,16 +421,20 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         sorted_interested = sorted(interested.keys(), key=attrgetter("display_name"))
         user_entries = []
         for person in sorted_interested:
+            suppress_code = False
             person_reaction_strings = []
             for emoji in interested[person]:
                 if isinstance(emoji, str):
                     person_reaction_strings.append(emoji)
                 else:  # this is a custom emoji
                     person_reaction_strings.append(f"<:{emoji.name}:{emoji.id}>")
+                if emoji == self.friend_code_suppress_code_reaction:
+                    suppress_code = True
 
             # If we're configured for it, look for a friend code.
             friend_code = None
-            if (self.friend_code_server_headers["x-api-key"] is not None
+            if (not suppress_code
+                    and self.friend_code_server_headers["x-api-key"] is not None
                     and self.friend_code_url_template is not None):
                 resp = requests.get(
                     self.friend_code_url_template.format(person.id),
@@ -1026,14 +1035,23 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         )
 
         if resp.status_code == 200:
-            await ctx.message.add_reaction("🆗")
+            bot_reply = await ctx.reply(
+                f"Your friend code will now appear in FYIs as {friend_code}.\n\n"
+                f"These messages will be deleted after {self.friend_code_cleanup_delay} seconds."
+            )
         else:
-            await ctx.reply(
-                """Please input your 12 digit Pokemon Go friend code (spaces or dashes are okay).  Example:
+            bot_reply = await ctx.reply(
+                f"""Please input your 12 digit Pokemon Go friend code (spaces or dashes are okay).  Example:
 ```
 .setfc 1234 5678 9012
-```"""
+```
+These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
+"""
             )
+
+        await asyncio.sleep(self.friend_code_cleanup_delay)
+        await bot_reply.delete()
+        await ctx.message.delete()
 
     @command(
         help="Remove your friend code from the system.",
@@ -1055,4 +1073,11 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         )
 
         if resp.status_code == 200:
-            await ctx.message.add_reaction("🆗")
+            bot_reply = await ctx.reply(
+                f"Your friend code will no longer appear in FYIs.\n\n"
+                f"These messages will be deleted after {self.friend_code_cleanup_delay} seconds."
+            )
+
+        await asyncio.sleep(self.friend_code_cleanup_delay)
+        await bot_reply.delete()
+        await ctx.message.delete()
