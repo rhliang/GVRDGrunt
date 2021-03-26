@@ -528,3 +528,8 @@ responds to `.setfc` or `.set_fc`.
 This disassociates the caller's friend code from their Discord account in the friend code server.  
 Other aliases for this command: `.unsetfc`, `.unset_fc`, `.deletefc`, `.delete_fc`, and
 `.delete_friend_code`.
+
+##### `.get_friend_code`
+This retrieves the caller's friend code from their Discord account in the friend code server,
+if it exists, and returns it as a cut-and-pasteable reply to the command.  
+Other aliases for this command: `.getfc` and `.get_fc`.

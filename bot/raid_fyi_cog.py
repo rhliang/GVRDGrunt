@@ -8,7 +8,8 @@ import requests
 import asyncio
 
 import discord
-from discord.ext.commands import command, BadArgument, EmojiConverter, Cog
+from discord.ext.commands import command, BadArgument, EmojiConverter, Cog,\
+    MissingRequiredArgument
 from discord.ext import tasks
 from botocore.exceptions import BotoCoreError
 
@@ -36,6 +37,7 @@ class RaidFYICog(BotPermsChecker, Cog):
             friend_code_url_template=None,
             friend_code_server_x_api_key=None,
             friend_code_cleanup_delay=15,
+            friend_code_cleanup_get_fc_delay=300,
             friend_code_suppress_code_reaction="🔏",
             logging_cog=None
     ):
@@ -49,6 +51,7 @@ class RaidFYICog(BotPermsChecker, Cog):
             "Accept": "application/json",
         }
         self.friend_code_cleanup_delay = friend_code_cleanup_delay
+        self.friend_code_cleanup_get_fc_delay = friend_code_cleanup_get_fc_delay
         self.friend_code_suppress_code_reaction = friend_code_suppress_code_reaction
         self.clean_up_fyis_loop.change_interval(
             hours=clean_up_hours,
@@ -1053,6 +1056,21 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
         await bot_reply.delete()
         await ctx.message.delete()
 
+    @set_friend_code.error
+    async def friend_code_error(self, ctx, error):
+        if isinstance(error, MissingRequiredArgument):
+            bot_reply = await ctx.reply(
+                f"""You must specify your 12 digit Pokemon Go friend code (spaces or dashes are okay).  Example:
+```
+.setfc 1234 5678 9012
+```
+These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
+"""
+            )
+            await asyncio.sleep(self.friend_code_cleanup_delay)
+            await bot_reply.delete()
+            await ctx.message.delete()
+
     @command(
         help="Remove your friend code from the system.",
         aliases=("unsetfc", "unset_fc", "deletefc", "delete_fc", "delete_friend_code")
@@ -1079,5 +1097,38 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
             )
 
         await asyncio.sleep(self.friend_code_cleanup_delay)
+        await bot_reply.delete()
+        await ctx.message.delete()
+
+    @command(
+        help="Associate a friend code with your Discord account.",
+        aliases=("getfc", "get_fc")
+    )
+    async def get_friend_code(self, ctx):
+        """
+        Associate a friend code with the caller's Discord account.
+        :param ctx:
+        :param friend_code: the user's friend code
+        :return:
+        """
+        # If we're configured for it, look for a friend code.
+        if (self.friend_code_server_headers["x-api-key"] is None
+                or self.friend_code_url_template is None):
+            return
+
+        resp = requests.get(
+            self.friend_code_url_template.format(ctx.author.id),
+            headers=self.friend_code_server_headers
+        )
+
+        if resp.status_code == 200:
+            bot_reply = await ctx.reply(f'{resp.json()["friendCode"]}')
+        else:
+            bot_reply = await ctx.reply(
+                "Your friend code does not appear to be registered with the bot.  "
+                "You can set it using the command `.setfc [friend code]`."
+            )
+
+        await asyncio.sleep(self.friend_code_cleanup_get_fc_delay)
         await bot_reply.delete()
         await ctx.message.delete()

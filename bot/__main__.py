@@ -119,6 +119,9 @@ def main():
             bot_perms_db,
             settings.get("friend_code_server_template"),
             settings.get("friend_code_x_api_key"),
+            settings.get("friend_code_cleanup_delay"),
+            settings.get("friend_code_cleanup_get_fc_delay"),
+            settings.get("friend_code_suppress_code_reaction"),
             logging_cog=logging_cog,
         )
     )
@@ -140,6 +143,11 @@ def main():
     @gvrd_grunt.event
     async def on_command_error(ctx, error):
         if isinstance(error, commands.CommandNotFound):
+            return
+
+        # We have a custom handler for the `.set_friend_code` command in the FYI cog,
+        # so do nothing here.
+        if ctx.command == RaidFYICog.set_friend_code:
             return
 
         await ctx.message.channel.send(
