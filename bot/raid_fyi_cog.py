@@ -1016,8 +1016,12 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
     async def before_clean_up_fyis(self):
         await self.bot.wait_until_ready()
 
-    @staticmethod
-    async def cleanup_fc_messages(delay: int, bot_reply: discord.Message, original_message: discord.Message):
+    async def cleanup_fc_messages(
+        self,
+        delay: int,
+        bot_reply: discord.Message,
+        original_message: discord.Message,
+    ):
         """
         Helper to clean up the messages after a user calls the friend code commands.
         :param delay:
@@ -1026,14 +1030,33 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
         :return:
         """
         await asyncio.sleep(delay)
-        try:
-            await bot_reply.delete()
-        except (discord.NotFound, discord.HTTPException):
-            pass
-        try:
-            await original_message.delete()
-        except (discord.NotFound, discord.HTTPException):
-            pass
+        log_error_message: str = ""
+        for msg in (bot_reply, original_message):
+            try:
+                await msg.delete()
+            except discord.NotFound:
+                pass
+            except discord.HTTPException as exc:
+                log_error_message = (
+                    f"The bot failed to delete a friend code command, "
+                    f"perhaps due to network issues.\n"
+                    f"Error message:\n"
+                    f"{exc}"
+                )
+            except discord.Forbidden as exc:
+                log_error_message = (
+                    f"The bot failed to delete a friend code command "
+                    f"perhaps because it lacks the appropriate permissions.  "
+                    f"Check the bot permissions in the channels where these "
+                    f"commands are used.\n"
+                    f"Error message:\n"
+                    f"{exc}"
+                )
+
+        if log_error_message != "" and self.logging_cog is not None:
+            await self.logging_cog.log_to_channel(
+                original_message.guild, log_error_message
+            )
 
     @command(
         help="Associate a friend code with your Discord account.",
