@@ -1,0 +1,10 @@
+version: '3.9'
+
+services:
+  gvrd_grunt:
+    image: gvrd_grunt:development
+    build:
+      context: .
+    volumes:
+      - ${GVRDGRUNT_CODE_DIR:?GVRDGRUNT_CODE_DIR is not set.}:/app
+    command: ["/bin/sh", "-l"]

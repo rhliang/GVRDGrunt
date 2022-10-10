@@ -341,8 +341,10 @@ class VerificationCog(BotPermsChecker, Cog):
         :param ctx:
         :return:
         """
+        print("FOOOOOOOO I got here")
         self.can_configure_bot_validator(ctx)
         self.guild_registered_validator(ctx.guild)
+        print("FOOOOOOOO I got here too")
 
         guild_info = self.db.get_verification_info(ctx.guild)
 

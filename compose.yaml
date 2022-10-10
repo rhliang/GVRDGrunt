@@ -1,0 +1,12 @@
+version: '3.9'
+
+services:
+  gvrd_grunt:
+    image: gvrd_grunt:production
+    build:
+      context: .
+    restart: unless-stopped
+    volumes:
+      - ${GVRDGRUNT_DB_DIR:?GVRDGRUNT_DB_DIR is not set.}:/db
+      - ${GVRDGRUNT_LOG_DIR:?GVRDGRUNT_LOG_DIR is not set.}:/log
+      - ${GVRDGRUNT_CONFIG_DIR:?GVRDGRUNT_CONFIG_DIR is not set.}:/config

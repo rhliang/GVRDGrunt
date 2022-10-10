@@ -86,6 +86,8 @@ class VerificationDB(object):
         """
         blank_record = dict(zip([field_name for field_name, _ in self.ALL_FIELDS], [None for _, _ in self.ALL_FIELDS]))
         blank_record["guild_id"] = guild.id
+        blank_record["standard_roles"] = []
+        blank_record["mandatory_roles"] = []
         for team in self.TEAMS:
             blank_record[f"{team}_emoji_type"] = None
         self.table.put_item(Item=blank_record, ConditionExpression="attribute_not_exists(guild_id)")
