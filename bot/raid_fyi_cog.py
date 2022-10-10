@@ -1016,9 +1016,37 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
     async def before_clean_up_fyis(self):
         await self.bot.wait_until_ready()
 
+    @staticmethod
+    async def cleanup_fc_messages(delay: int, bot_reply: discord.Message, original_message: discord.Message):
+        """
+        Helper to clean up the messages after a user calls the friend code commands.
+        :param delay:
+        :param bot_reply:
+        :param original_message:
+        :return:
+        """
+        await asyncio.sleep(delay)
+        try:
+            await bot_reply.delete()
+        except (discord.NotFound, discord.HTTPException):
+            pass
+        try:
+            await original_message.delete()
+        except (discord.NotFound, discord.HTTPException):
+            pass
+
     @command(
         help="Associate a friend code with your Discord account.",
-        aliases=("setfc", "set_fc")
+        aliases=(
+            "setfc",
+            "set_fc",
+            "Setfc",
+            "SETFC",
+            "setFC",
+            "setFc",
+            "SetFC",
+            "SetFc",
+        )
     )
     async def set_friend_code(self, ctx, *, friend_code):
         """
@@ -1052,9 +1080,11 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
 """
             )
 
-        await asyncio.sleep(self.friend_code_cleanup_delay)
-        await bot_reply.delete()
-        await ctx.message.delete()
+        await self.cleanup_fc_messages(
+            self.friend_code_cleanup_delay,
+            bot_reply,
+            ctx.message,
+        )
 
     @set_friend_code.error
     async def friend_code_error(self, ctx, error):
@@ -1067,13 +1097,34 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
 These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
 """
             )
-            await asyncio.sleep(self.friend_code_cleanup_delay)
-            await bot_reply.delete()
-            await ctx.message.delete()
+
+            await self.cleanup_fc_messages(
+                self.friend_code_cleanup_delay,
+                bot_reply,
+                ctx.message,
+            )
 
     @command(
         help="Remove your friend code from the system.",
-        aliases=("unsetfc", "unset_fc", "deletefc", "delete_fc", "delete_friend_code")
+        aliases=(
+            "unsetfc",
+            "unset_fc",
+            "deletefc",
+            "delete_fc",
+            "delete_friend_code",
+            "Unsetfc",
+            "UNSETFC",
+            "unsetFC",
+            "unsetFc",
+            "UnsetFC",
+            "UnsetFc",
+            "Deletefc",
+            "DELETEFC",
+            "deleteFC",
+            "deleteFc",
+            "DeleteFC",
+            "DeleteFc",
+        )
     )
     async def unset_friend_code(self, ctx):
         """
@@ -1096,13 +1147,24 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
                 f"These messages will be deleted after {self.friend_code_cleanup_delay} seconds."
             )
 
-        await asyncio.sleep(self.friend_code_cleanup_delay)
-        await bot_reply.delete()
-        await ctx.message.delete()
+        await self.cleanup_fc_messages(
+            self.friend_code_cleanup_delay,
+            bot_reply,
+            ctx.message,
+        )
 
     @command(
         help="Associate a friend code with your Discord account.",
-        aliases=("getfc", "get_fc")
+        aliases=(
+            "getfc",
+            "get_fc",
+            "Getfc",
+            "GETFC",
+            "getFC",
+            "getFc",
+            "GetFC",
+            "GetFc",
+        )
     )
     async def get_friend_code(self, ctx):
         """
@@ -1129,6 +1191,8 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
                 "You can set it using the command `.setfc [friend code]`."
             )
 
-        await asyncio.sleep(self.friend_code_cleanup_get_fc_delay)
-        await bot_reply.delete()
-        await ctx.message.delete()
+        await self.cleanup_fc_messages(
+            self.friend_code_cleanup_get_fc_delay,
+            bot_reply,
+            ctx.message,
+        )
