@@ -61,13 +61,15 @@ def main():
     with open(args.config, "rb") as f:
         settings = json.load(f)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     gvrd_grunt = BadBot(
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
+        case_insensitive=True,
         description="A grunt worker for the GVRD servers' needs",
         loop=loop,
-        intents=intents
+        intents=intents,
     )
 
     ex_db = EXGateDB(settings["sqlite_db"])

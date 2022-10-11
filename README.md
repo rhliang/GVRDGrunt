@@ -6,6 +6,14 @@ GVRDGrunt is a simple bot that performs boilerplate admin tasks for Vancouver/GV
 Installation
 ------------
 
+First, you must set up a Discord bot through the developer portal.  These instructions
+seem to often change, so we won't recapitulate any of them here; see the "Applications"
+tab in the developer portal when you're logged in to create a new app (bot).  
+
+The bot must have "Message content intent" enabled in order for commands to work with the
+usual "." prefix.  (Without this, commands seem to work if you mention the bot, but 
+without it, the bot cannot access the contents of messages sent by other users at all.)
+
 * Install Python 3.6 or later
     * On OS X, you may need to do the following https://github.com/Rapptz/discord.py/issues/423#issuecomment-272093801
 * Set up a Virtualenv if you're using this in production

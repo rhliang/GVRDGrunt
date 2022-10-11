@@ -483,12 +483,9 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
     )
     RELAY_MESSAGE_NONE_INTERESTED_YET = "(none so far)"
 
-    FYI_ALIASES = ["FYI", "Fyi"]
-
     @command(
         help="Post an FYI to the corresponding FYI channel.",
         rest_is_raw=True,
-        aliases=FYI_ALIASES
     )
     async def fyi(self, ctx):
         """
@@ -1060,16 +1057,7 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
 
     @command(
         help="Associate a friend code with your Discord account.",
-        aliases=(
-            "setfc",
-            "set_fc",
-            "Setfc",
-            "SETFC",
-            "setFC",
-            "setFc",
-            "SetFC",
-            "SetFc",
-        )
+        aliases=("setfc", "set_fc"),
     )
     async def set_friend_code(self, ctx, *, friend_code):
         """
@@ -1135,19 +1123,7 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
             "deletefc",
             "delete_fc",
             "delete_friend_code",
-            "Unsetfc",
-            "UNSETFC",
-            "unsetFC",
-            "unsetFc",
-            "UnsetFC",
-            "UnsetFc",
-            "Deletefc",
-            "DELETEFC",
-            "deleteFC",
-            "deleteFc",
-            "DeleteFC",
-            "DeleteFc",
-        )
+        ),
     )
     async def unset_friend_code(self, ctx):
         """
@@ -1181,13 +1157,7 @@ These messages will be deleted after {self.friend_code_cleanup_delay} seconds.
         aliases=(
             "getfc",
             "get_fc",
-            "Getfc",
-            "GETFC",
-            "getFC",
-            "getFc",
-            "GetFC",
-            "GetFc",
-        )
+        ),
     )
     async def get_friend_code(self, ctx):
         """
