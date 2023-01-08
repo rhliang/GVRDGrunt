@@ -530,7 +530,10 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
                 interested_users_str=self.RELAY_MESSAGE_NONE_INTERESTED_YET
             )
 
-        relay_message = await relay_channel.send(full_message_text)
+        relay_message = await relay_channel.send(
+            full_message_text,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
         chat_relay_message_id = None
         chat_relay_message = None
         if fyi_info["relay_to_chat"]:
