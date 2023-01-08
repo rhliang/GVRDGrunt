@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import json
 import logging
 
@@ -61,14 +60,10 @@ def main():
     with open(args.config, "rb") as f:
         settings = json.load(f)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
     gvrd_grunt = BadBot(
         command_prefix=commands.when_mentioned_or(settings["command_prefix"]),
         case_insensitive=True,
         description="A grunt worker for the GVRD servers' needs",
-        loop=loop,
         intents=intents,
     )
 
