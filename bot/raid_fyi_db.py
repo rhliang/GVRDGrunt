@@ -540,12 +540,16 @@ class RaidFYIDB(object):
                 curr_interested = x
             interested.append(curr_interested)
 
+        chat_relay_message_id = None
+        if fyi_info["chat_relay_message_id"] is not None:
+            chat_relay_message_id = int(fyi_info["chat_relay_message_id"])
+
         return {
             "chat_channel": chat_channel,
             "command_message_id": command_message_id,
             "relay_channel": relay_channel,
             "relay_message_id": relay_message_id,
-            "chat_relay_message_id": int(fyi_info["chat_relay_message_id"]),
+            "chat_relay_message_id": chat_relay_message_id,
             "timestamp": timestamp,
             "expiry": expiry,
             "creator": creator,
