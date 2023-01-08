@@ -1,9 +1,11 @@
+import re
+
+import dateutil
+import pytz
+
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 import discord
-import re
-import dateutil
-import pytz
 
 from bot.utils import emoji_to_db
 from bot.convert_using_guild import emoji_converter
@@ -55,8 +57,8 @@ category_pattern = "category(.+)"
 
 
 class MissingChannel(object):
-    def __init__(self, id):
-        self.id = id
+    def __init__(self, id: int):
+        self.id: int = id
 
     @property
     def name(self):
@@ -505,6 +507,8 @@ class RaidFYIDB(object):
             )
             fyi_info = response.get("Item")
 
+        # In the below, we cast the numerical fields (which come back as Decimals)
+        # to ints.
         chat_channel_id: int = int(
             re.match(
                 channel_message_pattern,
@@ -515,22 +519,22 @@ class RaidFYIDB(object):
         if chat_channel is None:
             chat_channel = MissingChannel(chat_channel_id)
         command_message_id = int(re.match(channel_message_pattern, fyi_info["config_channel_message"]).group(2))
-        relay_channel = guild.get_channel(fyi_info["relay_channel_id"])
+        relay_channel = guild.get_channel(int(fyi_info["relay_channel_id"]))
         if relay_channel is None:
-            relay_channel = MissingChannel(fyi_info["relay_channel_id"])
-        relay_message_id = fyi_info["relay_message_id"]
+            relay_channel = MissingChannel(int(fyi_info["relay_channel_id"]))
+        relay_message_id = int(fyi_info["relay_message_id"])
 
         timestamp = dateutil.parser.parse(fyi_info["timestamp"])
         expiry = dateutil.parser.parse(fyi_info["expiry"])
 
         # If the creator is a current guild member, return the member; otherwise, return the raw ID.
-        creator = guild.get_member(fyi_info["creator_id"])
+        creator = guild.get_member(int(fyi_info["creator_id"]))
         if creator is None:
-            creator = fyi_info["creator_id"]
+            creator = int(fyi_info["creator_id"])
 
         # Likewise for interested members.
         interested = []
-        for x in fyi_info["interested"]:
+        for x in [int(person) for person in fyi_info["interested"]]:
             curr_interested = guild.get_member(x)
             if curr_interested is None:
                 curr_interested = x
@@ -541,7 +545,7 @@ class RaidFYIDB(object):
             "command_message_id": command_message_id,
             "relay_channel": relay_channel,
             "relay_message_id": relay_message_id,
-            "chat_relay_message_id": fyi_info["chat_relay_message_id"],
+            "chat_relay_message_id": int(fyi_info["chat_relay_message_id"]),
             "timestamp": timestamp,
             "expiry": expiry,
             "creator": creator,
