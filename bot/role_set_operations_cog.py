@@ -2,7 +2,7 @@ import pyparsing as pp
 from discord.ext.commands import command, has_permissions, Cog
 import discord
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from bot.convert_using_guild import role_converter_from_name
 
@@ -134,8 +134,8 @@ class RoleSetOperationsCog(Cog):
         result = parser.parseString(role_statement)
 
         if start_datetime_str is not None and end_datetime_str is not None:
-            start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S")
-            end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S")
+            start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+            end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
             members_list = [x for x in result[0] if start_datetime <= x.joined_at <= end_datetime]
         else:
             members_list = result[0]

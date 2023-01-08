@@ -786,9 +786,9 @@ Cancelled emoji: {fyi_info["cancelled_emoji"] if fyi_info["enhanced"] else "(Non
 
         if cancellation:
             # Strike out any relay messages that are remaining.
-            for relay_message in [x for x in [relay_message, chat_relay_message] if x is not None]:
-                prior_content = relay_message.content
-                await relay_message.edit(content="~~{}~~".format(prior_content))
+            for relay_msg in [x for x in [relay_message, chat_relay_message] if x is not None]:
+                prior_content = relay_msg.content
+                await relay_msg.edit(content="~~{}~~".format(prior_content))
 
             # Add the guild's "cancelled" emoji to any messages that are remaining.
             for fyi_message in [x for x in [command_message, relay_message, chat_relay_message] if x is not None]:

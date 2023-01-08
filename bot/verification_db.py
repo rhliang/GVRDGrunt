@@ -102,7 +102,7 @@ class VerificationDB(object):
         :return:
         """
         if type not in ("screenshot", "help"):
-            raise discord.InvalidArgument('channel type must be one of "screenshot", or "help"')
+            raise ValueError('channel type must be one of "screenshot", or "help"')
         self.table.update_item(
             Key={"guild_id": guild.id},
             UpdateExpression=f"SET {type}_channel = :channel",
@@ -139,13 +139,13 @@ class VerificationDB(object):
 
     def team_name_validator(self, team):
         """
-        Raises discord.InvalidArgument if team is not one of "instinct", "mystic", or "valor", case-insensitive.
+        Raises ValueError if team is not one of "instinct", "mystic", or "valor", case-insensitive.
 
         :param team:
         :return:
         """
         if team.lower() not in self.TEAMS:
-            raise discord.InvalidArgument('team must be one of "instinct", "mystic", or "valor" (case-insensitive)')
+            raise ValueError('team must be one of "instinct", "mystic", or "valor" (case-insensitive)')
 
     def set_team_role(self, guild, team, role: discord.Role):
         """

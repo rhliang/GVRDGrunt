@@ -682,7 +682,7 @@ class VerificationCog(BotPermsChecker, Cog):
         reacting_member = reaction.message.guild.get_member(user.id)
         if reacting_member == reaction.message.guild.get_member(self.bot.user.id):
             return
-        reactor_permissions = reacting_member.permissions_in(reaction.message.channel)
+        reactor_permissions = reaction.message.channel.permissions_for(reacting_member)
         if not reactor_permissions.manage_roles or not reactor_permissions.manage_nicknames:
             return
         if reaction.message not in self.screenshot_to_member:

@@ -25,7 +25,7 @@ class BotPermsChecker(object):
         :param ctx:
         :return:
         """
-        caller_permissions = ctx.author.permissions_in(ctx.channel)
+        caller_permissions = ctx.channel.permissions_for(ctx.author)
         if caller_permissions.administrator:
             return True
 
