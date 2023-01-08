@@ -505,13 +505,19 @@ class RaidFYIDB(object):
             )
             fyi_info = response.get("Item")
 
-        chat_channel = guild.get_channel(
-            int(
-                re.match(channel_message_pattern, fyi_info["config_channel_message"]).group(1)
-            )
+        chat_channel_id: int = int(
+            re.match(
+                channel_message_pattern,
+                fyi_info["config_channel_message"],
+            ).group(1)
         )
+        chat_channel = guild.get_channel(chat_channel_id)
+        if chat_channel is None:
+            chat_channel = MissingChannel(chat_channel_id)
         command_message_id = int(re.match(channel_message_pattern, fyi_info["config_channel_message"]).group(2))
         relay_channel = guild.get_channel(fyi_info["relay_channel_id"])
+        if relay_channel is None:
+            relay_channel = MissingChannel(fyi_info["relay_channel_id"])
         relay_message_id = fyi_info["relay_message_id"]
 
         timestamp = dateutil.parser.parse(fyi_info["timestamp"])
