@@ -1,10 +1,12 @@
 import argparse
+import asyncio
 import json
 import logging
 
 import discord
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = True
 from discord.ext import commands
 
 from bot.baconpatroll_cog import BaconpaTrollCog
@@ -50,7 +52,7 @@ class BadBot(commands.Bot):
         await self.invoke(ctx)
 
 
-def main():
+async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--config", help="JSON file containing the required configuration",
@@ -104,9 +106,9 @@ def main():
 
     # These have been converted to check bot perms under the new scheme.
     logging_cog = GuildLoggingCog(gvrd_grunt, logging_db, bot_perms_db)
-    gvrd_grunt.add_cog(logging_cog)
-    gvrd_grunt.add_cog(BotPermsCog(gvrd_grunt, bot_perms_db))
-    gvrd_grunt.add_cog(
+    await gvrd_grunt.add_cog(logging_cog)
+    await gvrd_grunt.add_cog(BotPermsCog(gvrd_grunt, bot_perms_db))
+    await gvrd_grunt.add_cog(
         RaidFYICog(
             gvrd_grunt,
             raid_fyi_db,
@@ -122,20 +124,16 @@ def main():
             logging_cog=logging_cog,
         )
     )
-    gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db, bot_perms_db))
+    await gvrd_grunt.add_cog(VerificationCog(gvrd_grunt, verification_db, bot_perms_db))
 
     # These are the old-style cogs.
-    gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db, logging_cog=logging_cog))
-    gvrd_grunt.add_cog(RoleReactionSubscriptionCog(gvrd_grunt, role_reaction_subscription_db, logging_cog=logging_cog))
-    gvrd_grunt.add_cog(BaconpaTrollCog(gvrd_grunt))
-    gvrd_grunt.add_cog(NoCommandSubscriptionCog(gvrd_grunt, no_command_subscription_db, logging_cog=logging_cog))
-    gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
-    gvrd_grunt.add_cog(PurgeChannelsCog(gvrd_grunt))
-    gvrd_grunt.add_cog(RoleReminderCog(gvrd_grunt, role_reminder_db, logging_cog=logging_cog))
-
-
-    # For testing only -- *do not install on a production bot!*
-    # gvrd_grunt.add_cog(SpamCog())
+    await gvrd_grunt.add_cog(EXGateCog(gvrd_grunt, ex_db, logging_cog=logging_cog))
+    await gvrd_grunt.add_cog(RoleReactionSubscriptionCog(gvrd_grunt, role_reaction_subscription_db, logging_cog=logging_cog))
+    await gvrd_grunt.add_cog(BaconpaTrollCog(gvrd_grunt))
+    await gvrd_grunt.add_cog(NoCommandSubscriptionCog(gvrd_grunt, no_command_subscription_db, logging_cog=logging_cog))
+    await gvrd_grunt.add_cog(RoleSetOperationsCog(gvrd_grunt))
+    await gvrd_grunt.add_cog(PurgeChannelsCog(gvrd_grunt))
+    await gvrd_grunt.add_cog(RoleReminderCog(gvrd_grunt, role_reminder_db, logging_cog=logging_cog))
 
     @gvrd_grunt.event
     async def on_command_error(ctx, error):
@@ -164,8 +162,9 @@ def main():
     logging.getLogger("discord").setLevel(logging.WARNING)
     logging.getLogger("websockets.protocol").setLevel(logging.INFO)
 
-    gvrd_grunt.run(settings["token"], bot=True)
+    async with gvrd_grunt:
+        await gvrd_grunt.start(settings["token"])
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
