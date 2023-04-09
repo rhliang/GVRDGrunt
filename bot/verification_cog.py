@@ -414,11 +414,11 @@ class VerificationCog(BotPermsChecker, Cog):
 
         async with reply_channel.typing():
             guild_info = self.db.get_verification_info(guild)
-            if guild_info["welcome_role"] not in member.roles:
-                await reply_channel.send(
-                    f"{verifier.mention} The specified member is not in the Welcome role."
-                )
-                return
+            # if guild_info["welcome_role"] not in member.roles:
+            #     await reply_channel.send(
+            #         f"{verifier.mention} The specified member is not in the Welcome role."
+            #     )
+            #     return
 
             # Having reached here, we know this member is in the Welcome role.
             instinct_strings = ["instinct", "i", "yellow", "y"]
@@ -453,18 +453,24 @@ class VerificationCog(BotPermsChecker, Cog):
             nick_str = "no nickname"
             if in_game_name is not None:
                 await member.edit(
-                    roles=[team_role] + other_roles_to_add,
                     nick=in_game_name,
                     reason=f"Verified by {verifier.name} using {self.get_bot_member(guild).name}"
                 )
                 nick_str = f"nick {in_game_name}"
             else:
                 await member.edit(
-                    roles=[team_role] + other_roles_to_add,
                     reason=f"Verified by {verifier.name} using {self.get_bot_member(guild).name}"
                 )
                 if current_nick is not None:
                     nick_str = f"nick {current_nick} (self-assigned)"
+            await member.add_roles(
+                [team_role] + other_roles_to_add,
+                reason="Roles added automatically on verification",
+            )
+            await member.remove_roles(
+                [guild_info["welcome_role"]],
+                reason=f'Role {guild_info["welcome_role"]} removed automatically on verification',
+            )
 
             roles_added_str = "(none)"
             if len(other_roles_to_add) > 0:
@@ -583,8 +589,8 @@ class VerificationCog(BotPermsChecker, Cog):
         guild_info = self.db.get_verification_info(message.guild)
         if message.channel != guild_info["screenshot_channel"]:
             return False
-        if guild_info["welcome_role"] not in message.author.roles:
-            return False
+        # if guild_info["welcome_role"] not in message.author.roles:
+        #     return False
         if len(message.attachments) == 0:
             return False
         return True
