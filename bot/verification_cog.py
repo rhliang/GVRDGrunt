@@ -454,22 +454,22 @@ class VerificationCog(BotPermsChecker, Cog):
             if in_game_name is not None:
                 await member.edit(
                     nick=in_game_name,
-                    reason=f"Verified by {verifier.name} using {self.get_bot_member(guild).name}"
+                    reason=f"Guild nickname set by {verifier.name} using {self.get_bot_member(guild).name}"
                 )
                 nick_str = f"nick {in_game_name}"
             else:
-                await member.edit(
-                    reason=f"Verified by {verifier.name} using {self.get_bot_member(guild).name}"
-                )
                 if current_nick is not None:
                     nick_str = f"nick {current_nick} (self-assigned)"
             await member.add_roles(
-                [team_role] + other_roles_to_add,
-                reason="Roles added automatically on verification",
+                *([team_role] + other_roles_to_add),
+                reason=f"Roles added automatically on verification by {verifier.name} "
+                       f"using {self.get_bot_member(guild).name}",
             )
             await member.remove_roles(
-                [guild_info["welcome_role"]],
-                reason=f'Role {guild_info["welcome_role"]} removed automatically on verification',
+                guild_info["welcome_role"],
+                reason=f'Role {guild_info["welcome_role"]} removed automatically on '
+                       f'verification by {verifier.name} using '
+                       f'{self.get_bot_member(guild).name}',
             )
 
             roles_added_str = "(none)"
