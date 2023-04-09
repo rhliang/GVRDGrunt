@@ -60,8 +60,8 @@ class RaidFYICog(BotPermsChecker, Cog):
         )
         # self.clean_up_fyis_loop.start()
 
-    # def cog_unload(self):
-    #     self.clean_up_fyis_loop.cancel()
+    def cog_unload(self):
+        self.clean_up_fyis_loop.cancel()
 
     @command(
         help="Configure raid FYI functionality.",
